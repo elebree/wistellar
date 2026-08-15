@@ -1,0 +1,19 @@
+services:
+  build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - type: bind
+        source: ./build-patched.sh
+        target: /app/build-patched.sh
+      - ./output:/app/output
+      - ./source:/app/source
+    environment:
+      - MAPS_API_KEY=${MAPS_API_KEY} # Pass the API key at runtime
+      - API_HOST=${API_HOST} # Pass the API domain (original value is api.wigle.net)
+      - SERVER_URL=${SERVER_URL} # Pass the server base URL (original value https://wigle.net)
+      - GIT_TAG=${GIT_TAG:-foss-2.104} # Git tag/branch of wiglenet/wigle-wifi-wardriving to clone
+    stdin_open: true
+    tty: true
+    command: ["bash", "-c", "cd /app && chmod +x build-patched.sh && ./build-patched.sh"]

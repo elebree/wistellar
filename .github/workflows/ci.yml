@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same branch rather than letting them pile up.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Build backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      # Built on its own because it has no front-end dependency, so a Node problem
+      # cannot mask a C# one.
+      - name: Build Wistellar.Core
+        run: dotnet build Wistellar.Core/Wistellar.Core.csproj -c Release --warnaserror
+
+  frontend:
+    name: Build front end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: Wistellar.Frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: Wistellar.Frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check
+        working-directory: Wistellar.Frontend
+        run: pnpm run check
+
+      - name: Build
+        working-directory: Wistellar.Frontend
+        run: pnpm run build
+
+  server:
+    name: Build server and image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Building the server also builds the front end through the .esproj wrapper.
+      - name: Build Wistellar.Server
+        run: dotnet build Wistellar.Server/Wistellar.Server.csproj -c Release --warnaserror
+
+      - name: Build Docker image
+        run: docker build -t wistellar-server -f docker/Dockerfile .

@@ -1,0 +1,11 @@
+# Normalise line endings in the repository, and let Git pick the working-tree
+# style per platform for ordinary text files.
+* text=auto
+
+# Files consumed by Linux containers must keep LF even when checked out on
+# Windows: build-patched.sh is bind-mounted straight into the build container,
+# and CRLF there breaks the shebang ("/bin/bash^M: bad interpreter").
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

@@ -1,0 +1,54 @@
+@host = http://localhost:5075
+
+### Authenticate. Uses the same form shape as the WiGLE Android app.
+# @name login
+POST {{host}}/api/v2/activate
+Content-Type: application/x-www-form-urlencoded
+
+credential_0=admin&credential_1=YourStrongPassword&type=WEB
+
+@token = {{login.response.body.$.token}}
+
+### Networks as GeoJSON, filtered by SSID (LIKE pattern)
+GET {{host}}/geo/network?ssid=cafe%
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### A single network by BSSID
+GET {{host}}/geo/network?bssid=ff:ff:ff:ff:ff:ff
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Every recorded position of one network
+GET {{host}}/geo/location?bssid=ff:ff:ff:ff:ff:ff
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### A vector tile, with the same filter syntax the map uses
+GET {{host}}/geo/tiles/14/8503/5454.pbf?type=W|E|B|G|L&ssid=_%&time[gt]=100d
+Authorization: Bearer {{token}}
+
+### Bluetooth search (WiGLE API compatibility)
+GET {{host}}/api/v2/bluetooth/search?name=gvh%&latrange1=-74.9&latrange2=77.6&longrange1=-44.9&longrange2=81.2
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### Upload transactions. pagestart=0 also triggers recalculation of derived columns.
+GET {{host}}/api/v2/file/transactions?pagestart=0
+Authorization: Bearer {{token}}
+Accept: application/json
+
+### News feed (unauthenticated; the WiGLE app polls this)
+GET {{host}}/api/v2/news/latest
+Accept: application/json
+
+### Upload an observation file. Point the file reference at a local export.
+POST {{host}}/api/v2/file/upload
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=WistellarUploadBoundary
+
+--WistellarUploadBoundary
+Content-Disposition: form-data; name="file"; filename="WigleWifi_example.csv.gz"
+
+< ./WigleWifi_example.csv.gz
+--WistellarUploadBoundary--
