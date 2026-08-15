@@ -92,7 +92,7 @@
     if (colorize) {
       const param = "level"; // "altitude", "time"
       const levels = data.features
-        .map((v) => v.properties[param] as number)
+        .map((v) => v.properties?.[param] as number)
         .filter((v) => v !== undefined);
 
       const minLevel = Math.min(...levels);
@@ -131,9 +131,7 @@
     return res.data.features[0];
   }
 
-  async function getLocationInfo(
-    id: string,
-  ): Promise<FeatureCollection | undefined> {
+  async function getLocationInfo(id: string): Promise<FeatureCollection> {
     const res = await axios.get<FeatureCollection>(
       locationsUrl.replaceAll("{bssid}", id),
       { headers: { Authorization: `Bearer ${authService.getToken()}` } },
