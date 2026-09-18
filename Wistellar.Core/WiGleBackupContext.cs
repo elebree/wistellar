@@ -48,7 +48,19 @@ public partial class WiGleBackupContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        // connectionString is a bare file path, not a full connection string.
+        // connectionString is a bare file path, not a full connection string. SQLite creates the
+        // file but not the directory holding it, so a first run against a path like ./data/x.sqlite
+        // fails with "unable to open database file" unless the directory is made here.
+        // Empty at design time, where the parameterless constructor is used and nothing connects.
+        if (!string.IsNullOrEmpty(connectionString))
+        {
+            var directory = Path.GetDirectoryName(Path.GetFullPath(connectionString));
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+        }
+
         optionsBuilder.UseSqlite($"Data Source={connectionString}");
     }
 
