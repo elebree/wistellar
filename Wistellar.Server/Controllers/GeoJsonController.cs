@@ -98,14 +98,21 @@ namespace Wistellar.Server.Controllers
             Response.ContentType = "application/vnd.mapbox-vector-tile";
             Response.Headers.CacheControl = "max-age=300, public";
 
-            // Written straight to the response body rather than buffered into memory first.
+            // Buffered rather than written straight to the response body: the Mapbox writer is
+            // synchronous, and Kestrel rejects synchronous writes to the response stream unless
+            // AllowSynchronousIO is turned back on - which would otherwise make every tile request
+            // fail with "Synchronous operations are disallowed". One tile is small enough to hold.
+            using var buffer = new MemoryStream();
             tile.Write(
-                Response.Body,
+                buffer,
                 MapboxTileWriter.DefaultMinLinealExtent,
                 MapboxTileWriter.DefaultMinPolygonalExtent,
                 4096
             );
 
+            buffer.Position = 0;
+            Response.ContentLength = buffer.Length;
+            await buffer.CopyToAsync(Response.Body, HttpContext.RequestAborted);
             await Response.Body.FlushAsync(HttpContext.RequestAborted);
             HttpContext.RequestAborted.ThrowIfCancellationRequested();
         }
