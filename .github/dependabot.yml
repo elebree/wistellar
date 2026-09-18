@@ -1,0 +1,43 @@
+# Keeps the pinned pieces moving: the base images and pnpm/Node versions in docker/Dockerfile
+# are pinned on purpose, which only works if something proposes the updates.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # These move in lockstep; separate PRs per package just create version conflicts.
+      efcore:
+        patterns:
+          - 'Microsoft.EntityFrameworkCore*'
+          - 'EFCore.BulkExtensions*'
+      aspnetcore:
+        patterns:
+          - 'Microsoft.AspNetCore.*'
+          - 'Microsoft.Extensions.*'
+
+  - package-ecosystem: npm
+    directory: /Wistellar.Frontend
+    schedule:
+      interval: weekly
+    groups:
+      svelte:
+        patterns:
+          - 'svelte*'
+          - '@sveltejs/*'
+      dev-dependencies:
+        dependency-type: development

@@ -1,0 +1,117 @@
+name: Docker image
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: Build and publish image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      # Empty when the Docker Hub secrets are not configured; everything below degrades
+      # gracefully to publishing on GHCR only. The secrets context cannot be read from an
+      # `if:` directly, which is why it is mapped here.
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      # The Docker Hub namespace is not necessarily the login name, so the image path
+      # is spelled out rather than derived from the username.
+      DOCKERHUB_IMAGE: docker.io/elebree/wistellar
+      # Pull requests only validate that the image still builds. Nothing is published,
+      # which also means forks never need registry credentials.
+      PUBLISH: ${{ github.event_name == 'push' }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Work out which registries to target
+        id: images
+        run: |
+          images="ghcr.io/${GITHUB_REPOSITORY,,}"
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            images="${images}"$'\n'"${DOCKERHUB_IMAGE}"
+          else
+            echo "::notice::DOCKERHUB_USERNAME is not set - publishing to GHCR only."
+          fi
+          {
+            echo "list<<IMAGES_EOF"
+            echo "$images"
+            echo "IMAGES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: env.PUBLISH == 'true' && env.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # v1.2.3 -> :1.2.3, :1.2, :latest
+      # main   -> :edge
+      # always -> :sha-<short sha>
+      - name: Derive tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.images.outputs.list }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=edge,branch=main
+            type=sha
+          labels: |
+            org.opencontainers.image.title=Wistellar
+            org.opencontainers.image.description=Self-hosted server for collecting, storing and mapping wireless network surveys
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and publish
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          # Cross-compiled rather than emulated, so arm64 costs very little extra time.
+          # Pull requests build one architecture, since they only prove the image still builds.
+          platforms: ${{ env.PUBLISH == 'true' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Keeps the registry tag listing free of the "unknown/unknown" attestation entries.
+          provenance: false
+
+      # The Hub overview page is not populated by pushing an image - only the API sets it, so
+      # without this the page stays blank while GHCR shows the README via the source label.
+      # Releases only, so the published description always matches a released version.
+      # Never fails the job: the images are already pushed by this point, and a cosmetic
+      # description update is not worth turning a release red.
+      - name: Sync the Docker Hub description
+        if: env.PUBLISH == 'true' && env.DOCKERHUB_USERNAME != '' && startsWith(github.ref, 'refs/tags/')
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: elebree/wistellar
+          readme-filepath: ./README.md

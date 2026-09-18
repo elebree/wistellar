@@ -1,0 +1,35 @@
+# Wistellar, ready to run:
+#
+#   docker compose up -d
+#   docker compose exec wistellar dotnet Wistellar.Server.dll \
+#     --add-user --username admin --password 'YourStrongPassword' --role admin
+#
+# Then open http://localhost:8080.
+
+services:
+  wistellar:
+    image: ghcr.io/elebree/wistellar:latest
+    container_name: wistellar
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Holds the SQLite database and the generated JWT signing key. Replacing the container
+      # without this loses the data and invalidates every issued token.
+      - wistellar_data:/app/data
+    environment:
+      # Behind a reverse proxy, every request arrives from the proxy's address. The rate
+      # limiter partitions on that address, so without the two settings below all clients
+      # share one 600-request/60s bucket. KnownNetworks is the network the proxy talks from -
+      # 172.16.0.0/12 covers the default Docker bridge ranges. Narrow it if you can, and do
+      # not enable this if the container is reachable directly: anything that can reach it
+      # could then spoof X-Forwarded-For and evade the limiter.
+      # - Wistellar__ForwardedHeaders__Enabled=true
+      # - Wistellar__ForwardedHeaders__KnownNetworks__0=172.16.0.0/12
+      - ASPNETCORE_ENVIRONMENT=Production
+    # The image declares its own HEALTHCHECK against /health, which Compose inherits.
+    # First boot downloads the OUI and MCC-MNC tables before serving, so it stays in
+    # "starting" for up to a few minutes.
+
+volumes:
+  wistellar_data:
