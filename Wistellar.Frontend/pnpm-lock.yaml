@@ -13,7 +13,7 @@ importers:
         version: 4.1.17(vite@6.4.1(@types/node@20.19.43)(jiti@2.6.1)(lightningcss@1.30.2))
       axios:
         specifier: ^1.8.3
-        version: 1.13.2
+        version: 1.13.2(debug@4.4.3)
       jose:
         specifier: ^6.0.10
         version: 6.1.2
@@ -27,8 +27,8 @@ importers:
         specifier: ^5.20.0
         version: 5.20.0
       tailwindcss:
-        specifier: ^4.0.12
-        version: 4.1.17
+        specifier: ^4.3.3
+        version: 4.3.3
     devDependencies:
       '@sveltejs/adapter-static':
         specifier: ^3.0.0
@@ -938,6 +938,9 @@ packages:
   tailwindcss@4.1.17:
     resolution: {integrity: sha512-j9Ee2YjuQqYT9bbRTfTZht9W/ytp5H+jJpZKiYdP/bpnXARAuELt9ofP0lPnmHjbga7SNQIxdTAXCmtKVYjN+Q==}
 
+  tailwindcss@4.3.3:
+    resolution: {integrity: sha512-gOhV3P7ufE62QDGg1zVaTgCR+EtPv92k2nIhVcVKcLmxT1sUBsQGhnZj175j+MqRt4zLF7ic+sCYjfhxMxj7YQ==}
+
   tapable@2.3.0:
     resolution: {integrity: sha512-g9ljZiwki/LfxmQADO3dEY1CbpmXT5Hm2fJ+QaGKwSXUylMybePR7/67YW7jOrrvjEgL1Fmz5kzyAjWVWLlucg==}
     engines: {node: '>=6'}
@@ -1392,9 +1395,9 @@ snapshots:
 
   asynckit@0.4.0: {}
 
-  axios@1.13.2:
+  axios@1.13.2(debug@4.4.3):
     dependencies:
-      follow-redirects: 1.15.11
+      follow-redirects: 1.15.11(debug@4.4.3)
       form-data: 4.0.5
       proxy-from-env: 1.1.0
     transitivePeerDependencies:
@@ -1498,7 +1501,9 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.3
 
-  follow-redirects@1.15.11: {}
+  follow-redirects@1.15.11(debug@4.4.3):
+    optionalDependencies:
+      debug: 4.4.3
 
   form-data@4.0.5:
     dependencies:
@@ -1769,6 +1774,8 @@ snapshots:
       zimmerframe: 1.1.4
 
   tailwindcss@4.1.17: {}
+
+  tailwindcss@4.3.3: {}
 
   tapable@2.3.0: {}
 
