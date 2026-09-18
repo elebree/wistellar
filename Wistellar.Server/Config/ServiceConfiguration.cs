@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
@@ -71,6 +72,51 @@ namespace Wistellar.Server.Config
                 options.ValueLengthLimit = int.MaxValue;
                 options.MultipartBodyLengthLimit = long.MaxValue;
             });
+
+            // Forwarded headers. Behind a reverse proxy every request arrives from the proxy, so the
+            // rate limiter - which partitions on Connection.RemoteIpAddress - would lump all clients
+            // into a single bucket until X-Forwarded-For is applied. Opt-in, because trusting these
+            // headers from an untrusted peer lets a caller spoof its own address.
+            var forwarded = builder.Configuration
+                .GetSection("Wistellar:ForwardedHeaders")
+                .Get<ForwardedHeadersSettings>() ?? new ForwardedHeadersSettings();
+
+            if (forwarded.Enabled)
+            {
+                services.Configure<ForwardedHeadersOptions>(options =>
+                {
+                    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+                        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+                    options.ForwardLimit = forwarded.ForwardLimit;
+
+                    // The defaults trust loopback only, which is never where the proxy sits in a
+                    // container. Clearing both and adding nothing back means "trust any peer" - the
+                    // app warns about that at startup.
+                    options.KnownProxies.Clear();
+                    options.KnownNetworks.Clear();
+
+                    foreach (var proxy in forwarded.KnownProxies)
+                    {
+                        if (System.Net.IPAddress.TryParse(proxy, out var address))
+                        {
+                            options.KnownProxies.Add(address);
+                        }
+                    }
+
+                    foreach (var network in forwarded.KnownNetworks)
+                    {
+                        if (Microsoft.AspNetCore.HttpOverrides.IPNetwork.TryParse(network, out var parsed))
+                        {
+                            options.KnownNetworks.Add(parsed);
+                        }
+                    }
+                });
+            }
+
+            // Liveness only. It deliberately does not touch the database: WiGleBackupContext is
+            // registered transient and runs Database.Migrate() on every resolution, so probing it
+            // every 30 seconds would be expensive for no signal.
+            services.AddHealthChecks();
 
             services.ConfigureOptions<ConfigureJwtBearerOptions>();
             services.AddScoped<ILocalAuthenticationService, LocalAuthenticationService>();
