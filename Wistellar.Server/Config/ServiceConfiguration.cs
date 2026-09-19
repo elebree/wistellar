@@ -113,9 +113,9 @@ namespace Wistellar.Server.Config
                 });
             }
 
-            // Liveness only. It deliberately does not touch the database: WiGleBackupContext is
-            // registered transient and runs Database.Migrate() on every resolution, so probing it
-            // every 30 seconds would be expensive for no signal.
+            // Liveness only. It deliberately does not touch the database: a probe every 30 seconds
+            // would open a connection and hold it against the same file the tile queries read, for
+            // no signal the process itself does not already give.
             services.AddHealthChecks();
 
             services.ConfigureOptions<ConfigureJwtBearerOptions>();

@@ -6,24 +6,27 @@
 # Multi-architecture builds are cross-compiled rather than emulated, so they stay fast:
 #   docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile .
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS base
 WORKDIR /app
 EXPOSE 8080
 
-# curl is here only so HEALTHCHECK below has something to call the health endpoint with;
-# the runtime image ships with neither curl nor wget.
-RUN apt-get update -yq \
-    && apt-get install -yq --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
-
 # Pinned to the build machine's own architecture with $BUILDPLATFORM. The .NET output is
-# cross-compiled for the target with `-a $TARGETARCH`, and the front end compiles to
-# architecture-independent static files, so nothing here has to run under emulation.
+# cross-compiled for the target, and the front end compiles to architecture-independent static
+# files, so nothing here has to run under emulation.
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 # Supplied by BuildKit. This file needs BuildKit anyway for the cache mounts below, which
 # every Docker 23+ engine uses by default; the value here is only a fallback.
 ARG TARGETARCH=amd64
+
+# Docker's architecture names are not .NET's, and `dotnet restore` has no --os switch - only
+# publish does - so the full RID is resolved once here and both steps read it back.
+RUN case "$TARGETARCH" in \
+        amd64) echo linux-musl-x64 ;; \
+        arm64) echo linux-musl-arm64 ;; \
+        arm)   echo linux-musl-arm ;; \
+        *)     echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+    esac > /tmp/rid
 # pnpm honours this by defaulting `pnpm install` to --frozen-lockfile, so the image is built
 # from the dependency versions CI type-checked rather than whatever resolves today.
 ENV CI=true
@@ -52,14 +55,14 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
 COPY ["Wistellar.Server/Wistellar.Server.csproj", "Wistellar.Server/"]
 COPY ["Wistellar.Core/Wistellar.Core.csproj", "Wistellar.Core/"]
 COPY ["Wistellar.Frontend/Wistellar.Frontend.esproj", "Wistellar.Frontend/"]
-RUN dotnet restore "./Wistellar.Server/Wistellar.Server.csproj" -a $TARGETARCH
+RUN dotnet restore "./Wistellar.Server/Wistellar.Server.csproj" -r "$(cat /tmp/rid)"
 
 COPY . .
 WORKDIR "/src/Wistellar.Server"
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     dotnet publish "./Wistellar.Server.csproj" \
     -c $BUILD_CONFIGURATION \
-    -a $TARGETARCH \
+    -r "$(cat /tmp/rid)" \
     --no-self-contained \
     --no-restore \
     -o /app/publish \
@@ -86,6 +89,6 @@ USER app
 # before the app takes requests - a minute on a fast connection, longer on a Pi. Docker ends
 # the start period early on the first success, so this costs nothing on later boots.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=3 \
-    CMD curl -fsS http://localhost:8080/health || exit 1
+    CMD wget -q -O /dev/null http://localhost:8080/health || exit 1
 
 ENTRYPOINT ["dotnet", "Wistellar.Server.dll"]
