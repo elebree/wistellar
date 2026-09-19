@@ -125,9 +125,7 @@ namespace Wistellar.Server.Config
             services.AddTransient<WiGleBackupContext>((v) =>
             {
                 var settings = v.GetRequiredService<IOptions<AppSettings>>();
-                var context = new WiGleBackupContext(settings.Value.ConnectionString);
-                context.Database.Migrate();
-                return context;
+                return new WiGleBackupContext(settings.Value.ConnectionString);
             });
 
             // Response compression configuration

@@ -1,4 +1,5 @@
 ﻿using Wistellar.Core.Services;
+using Wistellar.Server.Config;
 
 namespace Wistellar.Server.Services
 {
@@ -49,6 +50,8 @@ namespace Wistellar.Server.Services
                 Wistellar.Server.Config.ServiceConfiguration.ConfigureServices(builder);
 
                 using var serviceProvider = builder.Services.BuildServiceProvider();
+
+                serviceProvider.MigrateDatabase();
 
                 using var scope = serviceProvider.CreateScope();
                 var userService = scope.ServiceProvider.GetRequiredService<IUserService>();

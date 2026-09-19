@@ -22,6 +22,8 @@ namespace Wistellar.Server
 
             var app = builder.Build();
 
+            app.Services.MigrateDatabase();
+
             // Configure the application pipeline
             app.ConfigureApplication();
 
