@@ -21,7 +21,7 @@
     <!-- Pinned ahead of the 2.1.10 that EF Core 9.0.14 resolves to. That build bundles SQLite
          3.46.1, which is affected by CVE-2025-6965 (integer truncation, fixed in 3.50.2);
          2.1.13 bundles 3.53.3. Staying on the 2.1.x line keeps EF Core 9 compatibility. -->
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.13" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.14">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
