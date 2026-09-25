@@ -6,7 +6,7 @@
 # Multi-architecture builds are cross-compiled rather than emulated, so they stay fast:
 #   docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile .
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS base
 WORKDIR /app
 EXPOSE 8080
 
