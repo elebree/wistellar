@@ -93,7 +93,7 @@ namespace Wistellar.Server.Config
                     // container. Clearing both and adding nothing back means "trust any peer" - the
                     // app warns about that at startup.
                     options.KnownProxies.Clear();
-                    options.KnownNetworks.Clear();
+                    options.KnownIPNetworks.Clear();
 
                     foreach (var proxy in forwarded.KnownProxies)
                     {
@@ -105,9 +105,9 @@ namespace Wistellar.Server.Config
 
                     foreach (var network in forwarded.KnownNetworks)
                     {
-                        if (Microsoft.AspNetCore.HttpOverrides.IPNetwork.TryParse(network, out var parsed))
+                        if (System.Net.IPNetwork.TryParse(network, out var parsed))
                         {
-                            options.KnownNetworks.Add(parsed);
+                            options.KnownIPNetworks.Add(parsed);
                         }
                     }
                 });

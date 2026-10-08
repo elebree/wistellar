@@ -6,14 +6,14 @@
 # Multi-architecture builds are cross-compiled rather than emulated, so they stay fast:
 #   docker buildx build --platform linux/amd64,linux/arm64 -f docker/Dockerfile .
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS base
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS base
 WORKDIR /app
 EXPOSE 8080
 
 # Pinned to the build machine's own architecture with $BUILDPLATFORM. The .NET output is
 # cross-compiled for the target, and the front end compiles to architecture-independent static
 # files, so nothing here has to run under emulation.
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 # Supplied by BuildKit. This file needs BuildKit anyway for the cache mounts below, which
 # every Docker 23+ engine uses by default; the value here is only a fallback.

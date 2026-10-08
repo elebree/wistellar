@@ -30,7 +30,13 @@ namespace Wistellar.Server.Config
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
-                app.UseSwaggerUI();
+                app.UseSwaggerUI(options =>
+                {
+                    // Absolute endpoint so the UI never depends on page-relative resolution of the
+                    // definition URL (the default "v1/swagger.json" is resolved against the browser
+                    // URL in index.js, which is brittle). Leading "/" is left as-is by that script.
+                    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Wistellar API v1");
+                });
             }
 
             app.UseCors();
