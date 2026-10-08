@@ -176,7 +176,7 @@ A `/geo/network` request without a bounding box returns every matching network i
 
 ## Building from source
 
-Requires the **.NET 10 SDK**, **Node.js 20+** and **pnpm**.
+Requires the **.NET 10 SDK**, **Node.js 22+** and **pnpm**.
 
 ```bash
 # API + web UI (building the server also builds the front end)

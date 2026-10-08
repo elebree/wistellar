@@ -9,7 +9,7 @@ runtime in production — Node is a build-time requirement only.
 
 ## Prerequisites
 
-- **Node.js 20 or newer** (Vite 6 and lightningcss both refuse to run on older releases)
+- **Node.js 22 or newer**
 - **pnpm** — the lockfile in this directory is a pnpm lockfile
 
 ## Developing

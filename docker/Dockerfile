@@ -31,7 +31,7 @@ RUN case "$TARGETARCH" in \
 # from the dependency versions CI type-checked rather than whatever resolves today.
 ENV CI=true
 # Kept in step with the versions CI uses (.github/workflows/ci.yml).
-ARG NODE_MAJOR=20
+ARG NODE_MAJOR=24
 ARG PNPM_VERSION=10.28.2
 
 # The front end is built as part of the server project, so the image needs Node and pnpm.

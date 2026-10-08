@@ -115,3 +115,5 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: elebree/wistellar
           readme-filepath: ./README.md
+          short-description: Self-hosted server for collecting, storing and mapping wireless network surveys
+          enable-url-completion: true
