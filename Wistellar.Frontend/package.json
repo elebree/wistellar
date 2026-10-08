@@ -15,16 +15,16 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
 	},
 	"devDependencies": {
-		"@sveltejs/adapter-static": "^3.0.10",
-		"@sveltejs/kit": "^2.70.3",
-		"@sveltejs/vite-plugin-svelte": "^5.1.1",
+		"@sveltejs/adapter-static": "^4.0.0",
+		"@sveltejs/kit": "^3.0.0",
+		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@turf/circle": "^7.4.0",
 		"@types/geojson": "^7946.0.16",
-		"@types/node": "^20.19.43",
+		"@types/node": "^26.6.4",
 		"svelte": "^5.57.1",
 		"svelte-check": "^4.7.6",
-		"typescript": "^5.9.3",
-		"vite": "^6.4.3"
+		"typescript": "^7.0.2",
+		"vite": "^8.3.2"
 	},
 	"dependencies": {
 		"@tailwindcss/vite": "^4.3.3",
