@@ -4,7 +4,7 @@
 
 Wistellar is a private home for wireless network observations — WiFi, Bluetooth and cellular. Point a
 survey app at it, or import logs and public datasets you already have, and explore everything on an
-interactive map. Nothing leaves your machine.
+interactive map. Your survey data stays in a database on your own server.
 
 It is not tied to any single app or data format: observations arrive either as **file imports** in a
 range of formats, or as **live uploads** from a survey app, and both feed the same database and the
@@ -20,14 +20,18 @@ same map.
   automatically, so you can hand it a whole export without unpacking first.
 - **Automatic enrichment** — MAC addresses are resolved to hardware vendors via the IEEE OUI registry,
   and cellular networks to operators via MCC/MNC data.
-- **Self-contained** — a single SQLite file holds everything; no external database to run.
+- **Self-contained** — a single SQLite file holds everything; no external database to run. The only
+  outside services it talks to are the OpenFreeMap base map loaded by the browser, and the IEEE OUI and
+  MCC/MNC lists downloaded once on first start.
 
 ## Data sources
 
 ### File import
 
-Upload through the web interface or an API client. Detection is automatic — the importer inspects each
-file rather than trusting its extension.
+File import is API-only: the web interface has no upload form. See [HTTP API](#http-api) for how to
+upload with `curl` or any other HTTP client. The importer picks the format by content type or file
+extension (`.csv`, `.kml`, `.sqlite`, plus `.gz` and `.zip` wrappers), and tells the CSV formats apart
+by their first line.
 
 | Format | Notes |
 | --- | --- |
@@ -42,9 +46,6 @@ file rather than trusting its extension.
 | App | Status |
 | --- | --- |
 | [WiGLE WiFi Wardriving](https://github.com/wiglenet/wigle-wifi-wardriving) | **Supported** — Wistellar implements the API the app uploads to. See [Survey app setup](#survey-app-setup). |
-| [Network Survey](https://github.com/christianrowlands/android-network-survey) | **Planned** |
-
-Support for further formats and apps is on the [roadmap](#roadmap).
 
 ## Quick start with Docker
 
@@ -133,27 +134,57 @@ type=W|E|B&ssid=cafe_%&time[gt]=7d&locations[gt]=5
 | Parameter | Notes |
 | --- | --- |
 | `type` | Network type letters, `\|`-separated. `W` WiFi, `B` Bluetooth, `E` BLE, `F` NFC, `G` GSM, `C` CDMA, `L` LTE, `D` UMTS, `N` 5G NR |
-| `ssid`, `bssid`, `cap` | SQL `LIKE` patterns (`%` and `_` wildcards), `\|`-separated for alternatives |
-| `range[gt]`, `range[lt]` | Estimated coverage radius, in metres |
+| `ssid`, `bssid` | SQL `LIKE` patterns (`%` and `_` wildcards), `\|`-separated for alternatives |
+| `cap` | A single SQL `LIKE` pattern matched against the capabilities string |
+| `range[gt]`, `range[lt]` | Distance between the farthest-apart observations, in metres |
 | `locations[gt]`, `locations[lt]` | Number of recorded observations |
-| `dwell[gt]`, `dwell[lt]` | Total observed duration |
+| `dwell[gt]`, `dwell[lt]` | Time between first and last observation, as a duration (`30m`, `12h`, `7d`) |
 | `time[gt]`, `time[lt]` | Last seen. Accepts relative offsets (`30m`, `12h`, `7d`, `3M`, `1y`), ISO dates, or Unix seconds |
 
-## Roadmap
+`range`, `locations` and `dwell` are recalculated only when the WiGLE app checks its upload status
+after an upload. Data added through [file import](#file-import) alone is not reflected in these three
+filters until that happens.
 
-- Support for the [Network Survey](https://github.com/christianrowlands/android-network-survey) app.
-- Additional import formats.
+## HTTP API
+
+The web interface only shows the map. The following features are available through the HTTP API only.
+Every endpoint except `activate` needs the token in an `Authorization: Bearer <token>` header.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/v2/activate` | Sign in. Form fields `credential_0` (user name), `credential_1` (password) and `type`; returns a JWT valid for one month |
+| `POST /api/v2/file/upload` | [File import](#file-import). Send the files as `multipart/form-data`; several files per request are accepted |
+| `GET /geo/network` | Networks as a GeoJSON `FeatureCollection`. Accepts every [map filter](#map-filters), plus a bounding box: `lat[gt]`, `lat[lt]`, `lon[gt]`, `lon[lt]` |
+| `GET /geo/location` | Individual observations as GeoJSON points. Filter by `bssid` (`\|`-separated) and `altitude[gt]` / `altitude[lt]` |
+
+```bash
+# Sign in and keep the token
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v2/activate \
+  -d credential_0=admin -d credential_1='YourStrongPassword' -d type=device | jq -r .token)
+
+# Import files
+curl -X POST http://localhost:8080/api/v2/file/upload \
+  -H "Authorization: Bearer $TOKEN" \
+  -F file=@WigleWifi_20240101.csv -F file=@export.kml.gz
+
+# Export filtered networks as GeoJSON
+curl -G http://localhost:8080/geo/network -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode 'type=W' --data-urlencode 'time[gt]=30d' > networks.geojson
+```
+
+A `/geo/network` request without a bounding box returns every matching network in the database.
 
 ## Building from source
 
-Requires the **.NET 9 SDK**, **Node.js 20+** and **pnpm**.
+Requires the **.NET 10 SDK**, **Node.js 20+** and **pnpm**.
 
 ```bash
 # API + web UI (building the server also builds the front end)
 dotnet run --project Wistellar.Server
 ```
 
-The API listens on <https://localhost:7188>, with Swagger at `/swagger` in Development.
+The API listens on <https://localhost:7188>, with Swagger at `/swagger` in Development, which lists
+every endpoint.
 
 To work on the front end with hot reload, run the server as above and start Vite alongside it — it
 proxies `/api` and `/geo` through to the running API:
@@ -174,10 +205,7 @@ pnpm run dev      # https://localhost:5173
 | `docker/` | Server image, plus the survey app build |
 
 New import formats are added by implementing `ITextImport` in `Wistellar.Core/Import` and registering
-it — the upload pipeline then offers every incoming file to each importer in turn.
-
-For the data model, the import pipeline, the filter DSL and the reasoning behind the less obvious
-choices, see **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+it — the upload pipeline then offers every incoming CSV file to each importer in turn.
 
 ## Troubleshooting
 
