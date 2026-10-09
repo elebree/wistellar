@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.VisualStudio.JavaScript.Sdk/1.0.1738743">
   <PropertyGroup>
     <StartupCommand>pnpm run dev</StartupCommand>
+    <BuildCommand>pnpm run build</BuildCommand>
     <JavaScriptTestRoot>src\</JavaScriptTestRoot>
     <PackageManager>pnpm</PackageManager>
     <JavaScriptTestFramework>Jest</JavaScriptTestFramework>
@@ -8,7 +9,7 @@
     <ShouldRunBuildScript>true</ShouldRunBuildScript>
     <BuildOutputFolder>$(MSBuildProjectDirectory)\dist</BuildOutputFolder>
   </PropertyGroup>
-  <Target Name="RunPnpmInstall" BeforeTargets="Build">
+  <Target Name="RunPnpmInstall" BeforeTargets="CoreCompile;_RunNpmCommandForPublishAssets">
     <Exec Command="pnpm install" />
   </Target>
 </Project>
