@@ -1,5 +1,12 @@
 # Wistellar
 
+[![CI](https://github.com/elebree/wistellar/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/elebree/wistellar/actions/workflows/ci.yml)
+[![Docker image](https://github.com/elebree/wistellar/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/elebree/wistellar/actions/workflows/docker-publish.yml)
+[![Release](https://img.shields.io/github/v/tag/elebree/wistellar?sort=semver&label=release)](https://github.com/elebree/wistellar/tags)
+[![Docker Pulls](https://img.shields.io/docker/pulls/elebree/wistellar)](https://hub.docker.com/r/elebree/wistellar)
+[![Image size](https://img.shields.io/docker/image-size/elebree/wistellar/latest)](https://hub.docker.com/r/elebree/wistellar/tags)
+[![Licence: MIT](https://img.shields.io/github/license/elebree/wistellar)](LICENSE)
+
 **A self-hosted server for collecting, storing and mapping wireless network surveys.**
 
 Wistellar is a private home for wireless network observations — WiFi, Bluetooth and cellular. Point a
@@ -49,18 +56,29 @@ by their first line.
 
 ## Quick start with Docker
 
-```bash
-docker build -t wistellar-server -f docker/Dockerfile .
+Prebuilt images for `linux/amd64` and `linux/arm64` are published to
+[Docker Hub](https://hub.docker.com/r/elebree/wistellar) and the
+[GitHub Container Registry](https://github.com/elebree/wistellar/pkgs/container/wistellar):
 
-docker run -d --name wistellar \
-  -p 8080:8080 \
-  -v wistellar_data:/app/data \
-  wistellar-server
+```bash
+docker run -d --name wistellar -p 8080:8080 -v wistellar_data:/app/data elebree/wistellar:latest
 ```
 
 The web interface is then at <http://localhost:8080>. The `/app/data` volume holds the SQLite database
 and the generated JWT signing key — mount it somewhere persistent, or you will lose your data and
-invalidate every issued token on the next rebuild.
+invalidate every issued token when the container is recreated.
+
+`latest` is the most recent release. Pin a version tag such as `0.1.0` for predictable upgrades, or
+use `edge` for an untested build of the current `main` branch. Every image is also available as
+`ghcr.io/elebree/wistellar`.
+
+To upgrade, pull the new image and recreate the container; the data volume carries over:
+
+```bash
+docker pull elebree/wistellar:latest
+docker rm -f wistellar
+docker run -d --name wistellar -p 8080:8080 -v wistellar_data:/app/data elebree/wistellar:latest
+```
 
 ### Create the first user
 
@@ -68,15 +86,13 @@ There is no self-registration. The server binary doubles as a user-management CL
 account before logging in:
 
 ```bash
-docker exec -it wistellar dotnet Wistellar.Server.dll \
-  --add-user --username admin --password 'YourStrongPassword' --role admin
+docker exec -it wistellar dotnet Wistellar.Server.dll --add-user --username admin --password 'S3cret!' --role admin
 ```
 
 ## User management
 
 Passing any argument to the server binary puts it into CLI mode: it runs the command and exits instead
-of starting the web host. Run it through `docker exec` for a container, or with
-`dotnet run --project Wistellar.Server --` from a source checkout.
+of starting the web host. Run it inside the container with `docker exec`.
 
 | Command | Arguments | Effect |
 | --- | --- | --- |
@@ -87,10 +103,9 @@ of starting the web host. Run it through `docker exec` for a container, or with
 Roles are `member` (the default), `moderator`, `contributor` and `admin`.
 
 ```bash
-# From a source checkout
-dotnet run --project Wistellar.Server -- --add-user --username alice --password 'S3cret!' --role member
-dotnet run --project Wistellar.Server -- --update-user --username alice --role moderator
-dotnet run --project Wistellar.Server -- --delete-user --username alice
+docker exec -it wistellar dotnet Wistellar.Server.dll --add-user --username alice --password 'S3cret!'
+docker exec -it wistellar dotnet Wistellar.Server.dll --update-user --username alice --role moderator
+docker exec -it wistellar dotnet Wistellar.Server.dll --delete-user --username alice
 ```
 
 ## Survey app setup
@@ -116,11 +131,7 @@ Settings live under the `Wistellar` section of `appsettings.json`:
 Both can be overridden with environment variables using ASP.NET Core's double-underscore syntax:
 
 ```bash
-docker run -d --name wistellar \
-  -p 8080:8080 \
-  -v wistellar_data:/app/data \
-  -e "Wistellar__ConnectionString=/app/data/my-networks.sqlite" \
-  wistellar-server
+docker run -d --name wistellar -p 8080:8080 -v wistellar_data:/app/data -e "Wistellar__ConnectionString=/app/data/my-networks.sqlite" elebree/wistellar:latest
 ```
 
 ## Map filters
@@ -159,53 +170,16 @@ Every endpoint except `activate` needs the token in an `Authorization: Bearer <t
 
 ```bash
 # Sign in and keep the token
-TOKEN=$(curl -s -X POST http://localhost:8080/api/v2/activate \
-  -d credential_0=admin -d credential_1='YourStrongPassword' -d type=device | jq -r .token)
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v2/activate -d credential_0=admin -d credential_1='S3cret!' -d type=device | jq -r .token)
 
 # Import files
-curl -X POST http://localhost:8080/api/v2/file/upload \
-  -H "Authorization: Bearer $TOKEN" \
-  -F file=@WigleWifi_20240101.csv -F file=@export.kml.gz
+curl -X POST http://localhost:8080/api/v2/file/upload -H "Authorization: Bearer $TOKEN" -F file=@WigleWifi_20240101.csv -F file=@export.kml.gz
 
 # Export filtered networks as GeoJSON
-curl -G http://localhost:8080/geo/network -H "Authorization: Bearer $TOKEN" \
-  --data-urlencode 'type=W' --data-urlencode 'time[gt]=30d' > networks.geojson
+curl -G http://localhost:8080/geo/network -H "Authorization: Bearer $TOKEN" --data-urlencode 'type=W' --data-urlencode 'time[gt]=30d' > networks.geojson
 ```
 
 A `/geo/network` request without a bounding box returns every matching network in the database.
-
-## Building from source
-
-Requires the **.NET 10 SDK**, **Node.js 22+** and **pnpm**.
-
-```bash
-# API + web UI (building the server also builds the front end)
-dotnet run --project Wistellar.Server
-```
-
-The API listens on <https://localhost:7188>, with Swagger at `/swagger` in Development, which lists
-every endpoint.
-
-To work on the front end with hot reload, run the server as above and start Vite alongside it — it
-proxies `/api` and `/geo` through to the running API:
-
-```bash
-cd Wistellar.Frontend
-pnpm install
-pnpm run dev      # https://localhost:5173
-```
-
-### Layout
-
-| Project | Role |
-| --- | --- |
-| `Wistellar.Core` | Data model, EF Core migrations, importers, GeoJSON and enrichment services |
-| `Wistellar.Server` | ASP.NET Core API, authentication, user-management CLI |
-| `Wistellar.Frontend` | SvelteKit + MapLibre web map |
-| `docker/` | Server image, plus the survey app build |
-
-New import formats are added by implementing `ITextImport` in `Wistellar.Core/Import` and registering
-it — the upload pipeline then offers every incoming CSV file to each importer in turn.
 
 ## Troubleshooting
 
@@ -228,9 +202,13 @@ permission mismatches.
 **Forgotten admin password** — reset it from the host:
 
 ```bash
-docker exec -it wistellar dotnet Wistellar.Server.dll \
-  --update-user --username admin --password 'NewStrongPassword'
+docker exec -it wistellar dotnet Wistellar.Server.dll --update-user --username admin --password 'NewStrongPassword'
 ```
+
+## Development
+
+Building from source, running locally and the project layout are covered in
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Licence
 
