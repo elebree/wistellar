@@ -3,7 +3,7 @@
   import { onMount } from "svelte";
   import MapLibre from "../components/MapLibre.svelte";
   import Login from "../components/Login.svelte";
-  import authService from "$lib/authService";
+  import authService from "#lib/authService.ts";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
 
@@ -13,7 +13,7 @@
   let filter = $state<string>("type=W|E|B|G|L|C|D|N&ssid=_%&time[gt]=1d");
 
   onMount(() => {
-    const searchParams = page.url.searchParams;
+    const searchParams = new URLSearchParams(page.url.searchParams.toString());
     lat = parseFloat(searchParams.get("lat") ?? "21.76");
     lon = parseFloat(searchParams.get("lon") ?? "8.53");
     zoom = parseFloat(searchParams.get("z") ?? "1.1");

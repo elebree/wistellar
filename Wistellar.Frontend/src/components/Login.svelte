@@ -1,5 +1,5 @@
 <script lang="ts">
-  import authService from "$lib/authService";
+  import authService from "#lib/authService.ts";
 
   let password: string;
   let username: string;

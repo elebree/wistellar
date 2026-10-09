@@ -1,4 +1,4 @@
-import { browser } from "$app/environment";
+import { browser } from "$app/env";
 import axios from "axios";
 import { decodeJwt } from "jose";
 

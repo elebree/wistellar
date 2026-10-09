@@ -44,6 +44,10 @@ namespace Wistellar.Server.Config
 
             app.MapControllers();
 
+            // Client-side routes such as /login have no file of their own, so hand them to the SPA
+            // shell that adapter-static writes. Unknown API, tile and Swagger paths stay 404s.
+            app.MapFallbackToFile("{*path:nonfile:regex(^(?!(api|geo|swagger)/))}", "app.html");
+
             // Anonymous and exempt from rate limiting, so a container health probe cannot be
             // starved by ordinary traffic and cannot consume the caller's own budget.
             app.MapHealthChecks("/health").DisableRateLimiting();

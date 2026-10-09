@@ -1,4 +1,6 @@
 import { sveltekit } from '@sveltejs/kit/vite';
+import adapter from '@sveltejs/adapter-static';
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
@@ -41,7 +43,13 @@ const target = env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_H
 export default defineConfig({
     plugins: [
         tailwindcss(),
-        sveltekit(),
+        sveltekit({
+            preprocess: vitePreprocess(),
+            adapter: adapter({
+                pages: 'dist',
+                fallback: 'app.html',
+            }),
+        }),
     ],
     resolve: {
         alias: {
@@ -50,8 +58,8 @@ export default defineConfig({
     },
     optimizeDeps: {
         include: ["maplibre-gl", "@turf/circle"],
-        esbuildOptions: {
-            target: "es2022",
+        rolldownOptions: {
+            transform: { target: "es2022" },
         },
     },
     server: {

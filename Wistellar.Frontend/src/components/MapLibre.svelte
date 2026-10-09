@@ -5,7 +5,7 @@
   import "maplibre-gl/dist/maplibre-gl.css";
   import { onMount, onDestroy } from "svelte";
   import { page } from "$app/state";
-  import authService from "$lib/authService";
+  import authService from "#lib/authService.ts";
 
   import axios from "axios";
   import mapLibre, {

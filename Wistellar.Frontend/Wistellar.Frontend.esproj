@@ -5,7 +5,7 @@
     <PackageManager>pnpm</PackageManager>
     <JavaScriptTestFramework>Jest</JavaScriptTestFramework>
     <ShouldRunNpmInstall>false</ShouldRunNpmInstall>
-    <ShouldRunBuildScript>false</ShouldRunBuildScript>
+    <ShouldRunBuildScript>true</ShouldRunBuildScript>
     <BuildOutputFolder>$(MSBuildProjectDirectory)\dist</BuildOutputFolder>
   </PropertyGroup>
   <Target Name="RunPnpmInstall" BeforeTargets="Build">

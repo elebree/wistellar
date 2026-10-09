@@ -18,7 +18,7 @@
     <PackageReference Include="Microsoft.AspNetCore.SpaProxy">
       <Version>10.0.12</Version>
     </PackageReference>
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.3.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -42,5 +42,15 @@
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
   </ItemGroup>
+
+  <!-- Publish gets the built SPA into wwwroot through the JavaScript SDK's static web assets, but a
+       plain build does not, so the exe in bin/ would serve 404s. Copy dist/ next to it instead. -->
+  <Target Name="CopySpaToOutput" AfterTargets="Build">
+    <ItemGroup>
+      <_SpaFiles Include="$(SpaRoot)\dist\**" />
+    </ItemGroup>
+    <RemoveDir Directories="$(OutDir)wwwroot" />
+    <Copy SourceFiles="@(_SpaFiles)" DestinationFiles="@(_SpaFiles->'$(OutDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 
 </Project>
