@@ -18,8 +18,8 @@ importers:
         specifier: ^6.2.12
         version: 6.2.12
       jsooner:
-        specifier: ^1.1.0
-        version: 1.1.0
+        specifier: ^1.5.0
+        version: 1.5.0
       jwt-decode:
         specifier: ^4.0.0
         version: 4.0.0
@@ -557,8 +557,8 @@ packages:
   json-stringify-pretty-compact@4.0.0:
     resolution: {integrity: sha512-3CNZ2DnrpByG9Nqj6Xo8vqbjT4F6N+tb4Gb28ESAZjYZ5yqvmc56J+/kuIwkaAMOyblTQhUW7PxMkUb8Q36N3Q==}
 
-  jsooner@1.1.0:
-    resolution: {integrity: sha512-TZO1qsVdfnjnSjy5zcxFcaK1y2e1YBfNi3qhcM/zUcgVTamRm+/U1uJ9mhHoTme4i/ujVUapmksBikT6g9OoBg==}
+  jsooner@1.5.0:
+    resolution: {integrity: sha512-33atu2BJgilb4UZ1fNM069chnkvdjy16LND/nE+QOm6pMgaKtuG1hvxkosGdS2LZTEIM+kj/mv5zDGDAj3SvYQ==}
 
   jwt-decode@4.0.0:
     resolution: {integrity: sha512-+KJGIyHgkGuIq3IEBNftfhW/LfWhXUIY6OmyVWjliu5KH1y0fw7VQ8YndE2O4qZdMSd9SqbnC8GOcZEy0Om7sA==}
@@ -1327,7 +1327,7 @@ snapshots:
 
   json-stringify-pretty-compact@4.0.0: {}
 
-  jsooner@1.1.0: {}
+  jsooner@1.5.0: {}
 
   jwt-decode@4.0.0: {}
 
