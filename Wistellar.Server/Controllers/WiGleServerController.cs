@@ -23,13 +23,18 @@ namespace Wistellar.Server.Controllers
         [HttpPost("activate")]
         [Consumes(MediaTypeNames.Application.FormUrlEncoded)]
         [EnableRateLimiting(ServiceConfiguration.OnlyOneConcurrencyPolicy)]
-        public async Task<ApiTokenResponse> OnActivate(
+        public async Task<ActionResult<ApiTokenResponse>> OnActivate(
             [FromForm(Name = "credential_0")] string login,
             [FromForm(Name = "credential_1")] string password,
             [FromForm(Name = "type")] string type,
             ILocalAuthenticationService auth)
         {
             var token = await auth.SignInAsync(login, password);
+            if (token == null)
+            {
+                logger.LogWarning("Sign-in failed for user {Username}", login);
+                return Unauthorized();
+            }
 
             return new ApiTokenResponse()
             {

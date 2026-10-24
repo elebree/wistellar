@@ -1,4 +1,5 @@
 <script lang="ts">
+  import axios from "axios";
   import authService from "#lib/authService.ts";
 
   let password: string;
@@ -11,7 +12,10 @@
       await authService.login(username, password);
       loggedIn();
     } catch (e) {
-      message = e?.toString() ?? "";
+      message =
+        axios.isAxiosError(e) && e.response?.status === 401
+          ? "Wrong login or password."
+          : (e?.toString() ?? "");
     }
   };
 </script>

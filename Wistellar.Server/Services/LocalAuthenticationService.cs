@@ -11,7 +11,7 @@ namespace Wistellar.Server.Services
         IOptions<JwtBearerOptions> jwtOptions,
         IUserService userService) : ILocalAuthenticationService
     {
-        public async Task<string> SignInAsync(string username, string password)
+        public async Task<string?> SignInAsync(string username, string password)
         {
             var options = jwtOptions.Value;
 
@@ -31,7 +31,7 @@ namespace Wistellar.Server.Services
 
                 return new JwtSecurityTokenHandler().WriteToken(token);
             }
-            throw new UnauthorizedAccessException();
+            return null;
         }
     }
 }
