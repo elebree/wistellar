@@ -2,7 +2,7 @@
 #
 #   docker compose up -d
 #   docker compose exec wistellar dotnet Wistellar.Server.dll \
-#     --add-user --username admin --password 'YourStrongPassword' --role admin
+#     --add-user --username admin --password YourStrongPassword --role admin
 #
 # Then open http://localhost:8080.
 
