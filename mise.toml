@@ -1,0 +1,98 @@
+[tools]
+# Kept in step with CI (.github/workflows/ci.yml) and docker/Dockerfile.
+node = "24"
+pnpm = "12"
+dotnet = "10"
+
+# `mise tasks` lists these; `mise run <task>` runs one. Tasks run from the repo root unless they set
+# `dir`. The server ones run from Wistellar.Server, like the VS Code launch configs, so they share its
+# data/ directory (database and JWT signing key).
+
+[tasks.install]
+description = "Install front-end dependencies"
+dir = "{{config_root}}/Wistellar.Frontend"
+run = "pnpm install"
+
+[tasks.build]
+description = "Build the server, which also builds the front end"
+# The .esproj runs its own `pnpm install`; installing first keeps that from racing a parallel one.
+depends = ["install"]
+run = "dotnet build Wistellar.Server/Wistellar.Server.csproj"
+
+[tasks."build:core"]
+description = "Build Wistellar.Core alone, without touching Node"
+run = "dotnet build Wistellar.Core/Wistellar.Core.csproj"
+
+[tasks."build:frontend"]
+description = "Build the front end into Wistellar.Frontend/dist"
+depends = ["install"]
+dir = "{{config_root}}/Wistellar.Frontend"
+run = "pnpm run build"
+
+[tasks.dev]
+description = "Run the API and the Vite dev server together"
+depends = ["dev:server", "dev:frontend"]
+
+[tasks."dev:server"]
+description = "Run the API on https://localhost:7188"
+depends = ["build"]
+dir = "{{config_root}}/Wistellar.Server"
+# The https profile, because Vite proxies to https://localhost:7188 when it is started on its own.
+run = "dotnet run --launch-profile https --no-build"
+
+[tasks."dev:frontend"]
+description = "Run the Vite dev server on https://localhost:5173"
+depends = ["install"]
+# Under `dev`, starts once the build is done, so it is listening before the server comes up.
+# SpaProxy then only proxies to it instead of trying to launch pnpm itself, which fails on Windows.
+wait_for = ["build"]
+dir = "{{config_root}}/Wistellar.Frontend"
+run = "pnpm run dev"
+
+[tasks.test]
+description = "Run the server-side tests"
+run = "dotnet test Wistellar.Tests/Wistellar.Tests.csproj"
+
+[tasks.check]
+description = "Type-check the front end with svelte-check"
+depends = ["install"]
+dir = "{{config_root}}/Wistellar.Frontend"
+run = "pnpm run check"
+
+[tasks.ci]
+description = "Run the same builds and checks as CI, warnings as errors"
+run = [
+  "dotnet build Wistellar.Core/Wistellar.Core.csproj -c Release --warnaserror",
+  "pnpm -C Wistellar.Frontend install --frozen-lockfile",
+  "pnpm -C Wistellar.Frontend run check",
+  "pnpm -C Wistellar.Frontend run build",
+  "dotnet build Wistellar.Server/Wistellar.Server.csproj -c Release --warnaserror",
+]
+
+[tasks.user]
+description = "Manage users: mise run user -- --add-user --username admin --password P --role admin"
+dir = "{{config_root}}/Wistellar.Server"
+run = "dotnet run --"
+
+[tasks."ef:list"]
+description = "List EF Core migrations"
+# The pinned dotnet-ef lives in Wistellar.Server/.config. Pointing --startup-project at Core means
+# the tool never builds the server, so it never runs pnpm.
+dir = "{{config_root}}/Wistellar.Server"
+run = [
+  "dotnet tool restore",
+  "dotnet ef migrations list --project ../Wistellar.Core --startup-project ../Wistellar.Core",
+]
+
+[tasks."ef:add"]
+description = "Add an EF Core migration"
+usage = 'arg "<name>" help="Migration name"'
+dir = "{{config_root}}/Wistellar.Server"
+run = [
+  "dotnet tool restore",
+  "dotnet ef migrations add {{usage.name}} --project ../Wistellar.Core --startup-project ../Wistellar.Core",
+]
+
+[tasks."docker:build"]
+description = "Build the container image as wistellar"
+run = "docker build -t wistellar -f docker/Dockerfile ."

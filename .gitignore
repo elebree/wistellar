@@ -411,3 +411,8 @@ data/
 *.sqlite-shm
 issuer_signing_key.txt
 
+# mise personal overrides (local tool versions, env vars). mise.toml itself is shared.
+mise.local.toml
+mise.*.local.toml
+.mise.local.toml
+
