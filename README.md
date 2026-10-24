@@ -13,18 +13,14 @@ Wistellar is a private home for wireless network observations — WiFi, Bluetoot
 survey app at it, or import logs and public datasets you already have, and explore everything on an
 interactive map. Your survey data stays in a database on your own server.
 
-It is not tied to any single app or data format: observations arrive either as **file imports** in a
-range of formats, or as **live uploads** from a survey app, and both feed the same database and the
-same map.
-
 ## Features
 
 - **One map for every source** — WiFi, Bluetooth and cellular observations land in a single database
   and render as separate layers on a MapLibre map backed by vector tiles generated on the fly.
 - **Expressive filtering** — filter by SSID, BSSID, capabilities, network type, observation count,
   signal range, dwell time and last-seen time, straight from the map's query box.
-- **Several input formats** — see [Data sources](#data-sources). Archives (`.gz`, `.zip`) are unpacked
-  automatically, so you can hand it a whole export without unpacking first.
+- **Several input formats** — see [Data sources](#data-sources). `.gz` and `.zip` archives are
+  unpacked automatically.
 - **Automatic enrichment** — MAC addresses are resolved to hardware vendors via the IEEE OUI registry,
   and cellular networks to operators via MCC/MNC data.
 - **Self-contained** — a single SQLite file holds everything; no external database to run. The only
@@ -52,7 +48,7 @@ by their first line.
 
 | App | Status |
 | --- | --- |
-| [WiGLE WiFi Wardriving](https://github.com/wiglenet/wigle-wifi-wardriving) | **Supported** — Wistellar implements the API the app uploads to. See [Survey app setup](#survey-app-setup). |
+| [WiGLE WiFi Wardriving](https://github.com/wiglenet/wigle-wifi-wardriving) | **Supported** — see [Survey app setup](#survey-app-setup). |
 
 ## Quick start with Docker
 
@@ -61,38 +57,32 @@ Prebuilt images for `linux/amd64` and `linux/arm64` are published to
 [GitHub Container Registry](https://github.com/elebree/wistellar/pkgs/container/wistellar):
 
 ```bash
-docker run -d --name wistellar -p 8080:8080 -v wistellar_data:/app/data elebree/wistellar:latest
+docker run -d --name wistellar -p 8080:8080 -v wistellar_data:/app/data --restart unless-stopped elebree/wistellar
 ```
 
 The web interface is then at <http://localhost:8080>. The `/app/data` volume holds the SQLite database
 and the generated JWT signing key — mount it somewhere persistent, or you will lose your data and
 invalidate every issued token when the container is recreated.
 
-`latest` is the most recent release. Pin a version tag such as `0.1.0` for predictable upgrades, or
-use `edge` for an untested build of the current `main` branch. Every image is also available as
-`ghcr.io/elebree/wistellar`.
-
-To upgrade, pull the new image and recreate the container; the data volume carries over:
+To upgrade, pull the new image, remove the container and run the command above again; the data volume
+carries over:
 
 ```bash
-docker pull elebree/wistellar:latest
+docker pull elebree/wistellar
 docker rm -f wistellar
-docker run -d --name wistellar -p 8080:8080 -v wistellar_data:/app/data elebree/wistellar:latest
 ```
 
 ### Create the first user
 
-There is no self-registration. The server binary doubles as a user-management CLI, so create your admin
-account before logging in:
+There is no self-registration, so create your admin account before logging in:
 
 ```bash
-docker exec -it wistellar dotnet Wistellar.Server.dll --add-user --username admin --password 'S3cret!' --role admin
+docker exec -it wistellar dotnet Wistellar.Server.dll --add-user --username admin --password YourStrongPassword --role admin
 ```
 
 ## User management
 
-Passing any argument to the server binary puts it into CLI mode: it runs the command and exits instead
-of starting the web host. Run it inside the container with `docker exec`.
+Every user command runs the same way as the one above.
 
 | Command | Arguments | Effect |
 | --- | --- | --- |
@@ -102,18 +92,12 @@ of starting the web host. Run it inside the container with `docker exec`.
 
 Roles are `member` (the default), `moderator`, `contributor` and `admin`.
 
-```bash
-docker exec -it wistellar dotnet Wistellar.Server.dll --add-user --username alice --password 'S3cret!'
-docker exec -it wistellar dotnet Wistellar.Server.dll --update-user --username alice --role moderator
-docker exec -it wistellar dotnet Wistellar.Server.dll --delete-user --username alice
-```
-
 ## Survey app setup
 
 Wistellar implements the API the WiGLE Android app uploads to, but the app itself has `wigle.net`
 hardcoded and offers no setting to point it elsewhere — so it has to be rebuilt against your server.
-[docker/wigle-wifi-wardriving/](docker/wigle-wifi-wardriving/) contains a Docker Compose build that does
-that for you: it clones the upstream app, rewrites the server URLs, and produces an installable APK.
+A Docker Compose build in this repository does that for you: it clones the upstream app, rewrites the
+server URLs and produces an installable APK.
 
 **→ [Building the WiGLE app for Wistellar](docker/wigle-wifi-wardriving/README.md)**
 
@@ -128,11 +112,8 @@ Settings live under the `Wistellar` section of `appsettings.json`:
 | `ConnectionString` | `./data/wistellar.sqlite` | Path to the SQLite database file. Created and migrated on startup. |
 | `IssuerSigningKeyFilePath` | `./data/issuer_signing_key.txt` | JWT signing key. Generated on first run and reused afterwards. |
 
-Both can be overridden with environment variables using ASP.NET Core's double-underscore syntax:
-
-```bash
-docker run -d --name wistellar -p 8080:8080 -v wistellar_data:/app/data -e "Wistellar__ConnectionString=/app/data/my-networks.sqlite" elebree/wistellar:latest
-```
+Both can be overridden with environment variables using ASP.NET Core's double-underscore syntax, for
+example `-e Wistellar__ConnectionString=/app/data/my-networks.sqlite` on the `docker run` command.
 
 ## Map filters
 
@@ -158,7 +139,6 @@ filters until that happens.
 
 ## HTTP API
 
-The web interface only shows the map. The following features are available through the HTTP API only.
 Every endpoint except `activate` needs the token in an `Authorization: Bearer <token>` header.
 
 | Endpoint | Purpose |
@@ -170,7 +150,7 @@ Every endpoint except `activate` needs the token in an `Authorization: Bearer <t
 
 ```bash
 # Sign in and keep the token
-TOKEN=$(curl -s -X POST http://localhost:8080/api/v2/activate -d credential_0=admin -d credential_1='S3cret!' -d type=device | jq -r .token)
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v2/activate -d credential_0=admin -d credential_1=YourStrongPassword -d type=device | jq -r .token)
 
 # Import files
 curl -X POST http://localhost:8080/api/v2/file/upload -H "Authorization: Bearer $TOKEN" -F file=@WigleWifi_20240101.csv -F file=@export.kml.gz
@@ -198,12 +178,6 @@ docker exec -it wistellar ls -la /app/data
 
 Using a named volume (`-v wistellar_data:/app/data`) rather than a bind mount avoids most host
 permission mismatches.
-
-**Forgotten admin password** — reset it from the host:
-
-```bash
-docker exec -it wistellar dotnet Wistellar.Server.dll --update-user --username admin --password 'NewStrongPassword'
-```
 
 ## Development
 

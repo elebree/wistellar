@@ -33,7 +33,7 @@ pnpm run dev      # https://localhost:5173
 User-management commands work from a source checkout too. Pass them after `--`:
 
 ```bash
-dotnet run --project Wistellar.Server -- --add-user --username alice --password 'S3cret!' --role member
+dotnet run --project Wistellar.Server -- --add-user --username alice --password YourStrongPassword --role member
 dotnet run --project Wistellar.Server -- --update-user --username alice --role moderator
 dotnet run --project Wistellar.Server -- --delete-user --username alice
 ```
