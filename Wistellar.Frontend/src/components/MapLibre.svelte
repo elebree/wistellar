@@ -1,8 +1,9 @@
 <script lang="ts">
   import "maplibre-gl/dist/maplibre-gl.css";
-  import { onMount, onDestroy, untrack } from "svelte";
+  import { onMount, onDestroy, untrack, mount, unmount } from "svelte";
   import { page } from "$app/state";
   import { api, handleMapError, transformRequest } from "#lib/api.ts";
+  import NetworkPopup from "./NetworkPopup.svelte";
 
   import mapLibre, {
     type GeoJSONSource,
@@ -50,20 +51,6 @@
     ["cell", "darkolivegreen"],
   ] as const;
   const networkLayerIds = layers.map(([layer]) => `networks-${layer}`);
-
-  function escapeHTML(s: string): string {
-    if (!s) return "";
-    s = String(s);
-    const tagsToReplace: { [key: string]: string } = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-    };
-
-    return s.replace(/[&<>]/g, (tag: string): string => {
-      return tagsToReplace[tag] || tag;
-    });
-  }
 
   $effect(() => changeScale(zoom, lat, lng));
   function changeScale(zoom: number, lat: number, lng: number) {
@@ -216,48 +203,23 @@
     // Another click, a filter change or a sign-out happened while this was loading.
     if (selection !== id) return;
 
-    const props = info?.properties ?? { bssid: id };
-
-    const html = Object.entries(props)
-      .filter(([_, v]) => v)
-      .map(([k, v]) => {
-        const key = escapeHTML(k);
-        const value =
-          k === "lasttime"
-            ? new Date(v).toLocaleString("de-DE")
-            : escapeHTML(v);
-        if (value == "") return "";
-        switch (key) {
-          case "type":
-            return `<span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-700/10 ring-inset">${value}</span>&nbsp;`;
-          case "bssid":
-            return `<span class="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-500/10 ring-inset">${value}</span><br/>`;
-          case "cap":
-            return (
-              value
-                .replace(/^\[|\]$/g, "")
-                .split("][")
-                .join(";")
-                .split(";")
-                .filter((v) => v != "")
-                .map(
-                  (v) =>
-                    `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-green-600/20 ring-inset">${v}</span>`,
-                )
-                .join("&nbsp;") + "</br>"
-            );
-          case "ssid":
-            return `<span class="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-yellow-600/20 ring-inset">${value}</span><br/>`;
-          case "lastlat":
-          case "lastlon":
-            return "";
-        }
-        return `${key}: ${value}<br/>`;
-      })
-      .join("");
+    const properties = info?.properties ?? { bssid: id };
 
     popup?.remove();
-    popup = new Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
+    const current = new Popup({
+      className: "network-popup",
+      closeButton: false,
+      maxWidth: "none",
+      offset: 10,
+    });
+    const content = document.createElement("div");
+    const component = mount(NetworkPopup, {
+      target: content,
+      props: { properties, onclose: () => current.remove() },
+    });
+    current.on("close", () => unmount(component));
+    current.setLngLat(e.lngLat).setDOMContent(content).addTo(map);
+    popup = current;
   }
 
   function setupMap() {
@@ -358,5 +320,17 @@
 
   .watermark img {
     width: 16px;
+  }
+
+  /* NetworkPopup brings its own panel, so strip MapLibre's box and tip around it. */
+  :global(.network-popup .maplibregl-popup-content) {
+    padding: 0;
+    background: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  :global(.network-popup .maplibregl-popup-tip) {
+    display: none;
   }
 </style>
