@@ -55,6 +55,41 @@ jobs:
         working-directory: Wistellar.Frontend
         run: pnpm run build
 
+  e2e:
+    name: Front-end end-to-end tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: Wistellar.Frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: Wistellar.Frontend
+        run: pnpm install --frozen-lockfile
+
+      # Playwright drives the runner's preinstalled Chrome against a production build with the API
+      # stubbed, so this needs neither the server nor a database.
+      - name: Run end-to-end tests
+        working-directory: Wistellar.Frontend
+        run: pnpm run test:e2e
+
+      # A failed test leaves a trace; open it with `pnpm exec playwright show-trace <trace.zip>`.
+      - name: Upload traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-test-results
+          path: Wistellar.Frontend/test-results/
+          retention-days: 7
+
   server:
     name: Build server
     runs-on: ubuntu-latest

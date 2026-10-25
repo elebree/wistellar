@@ -45,9 +45,14 @@ dotnet test Wistellar.Tests/Wistellar.Tests.csproj    # server-side tests (xUnit
 
 cd Wistellar.Frontend
 pnpm run check                                         # svelte-check type checking
+pnpm run test:e2e                                      # Playwright end-to-end tests
 ```
 
-The front end has no tests. To iterate on C# without touching Node, build `Wistellar.Core` on its own:
+The front end's tests are end-to-end only. They run in the installed Chrome against a production build
+with the API stubbed (see [Wistellar.Frontend/e2e/](../Wistellar.Frontend/e2e/)), so they need neither
+the server nor a database; `mise run test:e2e` does the same.
+
+To iterate on C# without touching Node, build `Wistellar.Core` on its own:
 
 ```bash
 dotnet build Wistellar.Core/Wistellar.Core.csproj

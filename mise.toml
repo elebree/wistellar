@@ -53,6 +53,18 @@ run = "pnpm run dev"
 description = "Run the server-side tests"
 run = "dotnet test Wistellar.Tests/Wistellar.Tests.csproj"
 
+[tasks."test:e2e"]
+description = "Run the front-end end-to-end tests (Playwright in Chrome, API stubbed, no server needed)"
+depends = ["install"]
+dir = "{{config_root}}/Wistellar.Frontend"
+run = "pnpm run test:e2e"
+
+[tasks."test:e2e:ui"]
+description = "Open Playwright's UI mode for the front-end end-to-end tests"
+depends = ["install"]
+dir = "{{config_root}}/Wistellar.Frontend"
+run = "pnpm run test:e2e:ui"
+
 [tasks.check]
 description = "Type-check the front end with svelte-check"
 depends = ["install"]
@@ -66,6 +78,7 @@ run = [
   "pnpm -C Wistellar.Frontend install --frozen-lockfile",
   "pnpm -C Wistellar.Frontend run check",
   "pnpm -C Wistellar.Frontend run build",
+  "pnpm -C Wistellar.Frontend run test:e2e",
   "dotnet build Wistellar.Server/Wistellar.Server.csproj -c Release --warnaserror",
 ]
 
