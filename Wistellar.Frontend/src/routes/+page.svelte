@@ -3,7 +3,12 @@
   import { onMount } from "svelte";
   import MapLibre from "../components/MapLibre.svelte";
   import Login from "../components/Login.svelte";
-  import authService from "#lib/authService.ts";
+  import AppMenu, { type MenuItem } from "../components/AppMenu.svelte";
+  import { auth } from "#lib/auth.svelte.ts";
+  import signInIcon from "#lib/icons/sign-in.svg?raw";
+  import signOutIcon from "#lib/icons/sign-out.svg?raw";
+  import userIcon from "#lib/icons/user.svg?raw";
+  import Icon from "../components/Icon.svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
 
@@ -12,7 +17,27 @@
   let zoom = $state<number>(1.1);
   let filter = $state<string>("type=W|E|B|G|L|C|D|N&ssid=_%&time[gt]=1d");
 
+  // New entries go here; `visible` decides when each one shows.
+  const menuItems: MenuItem[] = [
+    {
+      id: "sign-in",
+      label: "Sign in",
+      icon: signInIcon,
+      visible: () => !auth.signedIn,
+      action: () => auth.openSignIn(),
+    },
+    {
+      id: "sign-out",
+      label: "Sign out",
+      icon: signOutIcon,
+      visible: () => auth.signedIn,
+      action: () => auth.signOut(),
+    },
+  ];
+
   onMount(() => {
+    auth.restore();
+
     const searchParams = new URLSearchParams(page.url.searchParams.toString());
     lat = parseFloat(searchParams.get("lat") ?? "21.76");
     lon = parseFloat(searchParams.get("lon") ?? "8.53");
@@ -25,8 +50,6 @@
 
     if (urlFilter != "") filter = urlFilter;
   });
-
-  let loggedIn = $state(authService.isAuthorized());
 
   $effect(() => {
     updateQueryStringFromFilter(filter);
@@ -47,10 +70,9 @@
   }
 
   function onMapError(ev: ErrorEvent) {
-    // A 401 on a tile request means the stored token expired; drop back to the login form.
-    if (ev.error.status === 401) {
-      authService.logout();
-      loggedIn = authService.isAuthorized();
+    // A 401 on a tile request means the stored token expired or is no longer accepted.
+    if (ev.error?.status === 401) {
+      auth.expire();
     } else {
       console.error(ev);
     }
@@ -77,27 +99,31 @@
   }
 </script>
 
+{#snippet signedInAs()}
+  <div class="flex items-center gap-3">
+    <Icon svg={userIcon} class="size-5 text-gray-400" />
+    <span class="truncate text-sm font-medium text-gray-900">
+      <span class="sr-only">Signed in as</span>
+      {auth.userName}
+    </span>
+  </div>
+{/snippet}
+
 <div class="app">
-  {#if loggedIn === false}
-    <Login
-      loggedIn={() => {
-        loggedIn = authService.isAuthorized();
-      }}
-    />
-  {/if}
-  {#if loggedIn === true && filter && lat && lon}
+  {#if lat && lon}
     <MapLibre
       {filter}
       {onChangeView}
       {zoom}
       {lat}
       lng={lon}
+      signedIn={auth.signedIn}
       onerror={onMapError}
     />
   {/if}
-  {#if loggedIn === true}
-    <div class="maplibregl-control-container">
-      <div class=" maplibregl-ctrl-top-left">
+  <div class="maplibregl-control-container">
+    <div class=" maplibregl-ctrl-top-left">
+      {#if auth.signedIn}
         <input
           type="text"
           name="filter"
@@ -116,15 +142,23 @@
             filter = (e?.target as any).value;
           }}
         />
-      </div>
+      {/if}
     </div>
-  {/if}
+    <div class="maplibregl-ctrl-top-right">
+      <AppMenu
+        items={menuItems}
+        header={auth.signedIn ? signedInAs : undefined}
+      />
+    </div>
+  </div>
+  <Login />
 </div>
 
 <style>
   .filter-box {
     border-radius: 50vh;
-    width: calc(100vw - 20px);
+    /* 10px margin on each side, plus the 36px menu button and a 10px gap before it. */
+    width: calc(100vw - 66px);
   }
 
   :global(body) {

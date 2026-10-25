@@ -1,34 +1,41 @@
 <script lang="ts">
-  export const prerender = false;
-  export const ssr = false;
-
   import "maplibre-gl/dist/maplibre-gl.css";
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, onDestroy, untrack } from "svelte";
   import { page } from "$app/state";
-  import authService from "#lib/authService.ts";
+  import { api } from "#lib/api.ts";
+  import { auth } from "#lib/auth.svelte.ts";
 
-  import axios from "axios";
   import mapLibre, {
     type GeoJSONSource,
+    type MapLayerMouseEvent,
     type RequestTransformFunction,
+    type Subscription,
     type VectorTileSource,
   } from "maplibre-gl";
   import type { Feature, FeatureCollection } from "geojson";
 
   const { Map, NavigationControl, GeolocateControl, Popup } = mapLibre;
 
+  interface Props {
+    filter: string;
+    zoom: number;
+    lng: number;
+    lat: number;
+    /** Network tiles need a signed-in user, so their source and layers exist only while this is true. */
+    signedIn: boolean;
+    onerror?: (ev: ErrorEvent) => void;
+    onChangeView?: (zoom: number, lat: number, lng: number) => void;
+  }
+
+  let { filter, zoom, lng, lat, signedIn, onerror, onChangeView }: Props =
+    $props();
+
   let map: mapLibre.Map;
   let mapContainer: HTMLElement;
-
-  export let onerror: ((ev: ErrorEvent) => void) | undefined = undefined;
-  export let filter: string;
-  export let selection: string | undefined = undefined;
-  export let zoom: number;
-  export let lng: number;
-  export let lat: number;
-  export let onChangeView:
-    | undefined
-    | ((zoom: number, lat: number, lng: number) => void) = undefined;
+  let styleLoaded = $state(false);
+  let selection = $state<string>();
+  let popup: mapLibre.Popup | undefined;
+  let networkSubscriptions: Subscription[] = [];
 
   const networksSource = "networks";
   const geojsonSource = "geojson";
@@ -46,6 +53,7 @@
     ["wifi", "tomato"],
     ["cell", "darkolivegreen"],
   ] as const;
+  const networkLayerIds = layers.map(([layer]) => `networks-${layer}`);
 
   function escapeHTML(s: string): string {
     if (!s) return "";
@@ -61,7 +69,7 @@
     });
   }
 
-  $: changeScale(zoom, lat, lng);
+  $effect(() => changeScale(zoom, lat, lng));
   function changeScale(zoom: number, lat: number, lng: number) {
     if (map) {
       map.setCenter({ lat, lng });
@@ -70,24 +78,42 @@
   }
 
   // Reactive updates
-  $: if (filter) updateFilter(filter);
-  $: if (selection) updateSelection(selection);
+  $effect(() => updateFilter(filter));
+  $effect(() => {
+    updateSelection(selection);
+  });
+  $effect(() => {
+    if (!styleLoaded) return;
+    if (signedIn) addNetworkLayers();
+    else removeNetworkLayers();
+  });
 
   function updateFilter(filter: string) {
-    selection = "UNDEFINED";
-    const networkSource = map?.getSource(networksSource) as VectorTileSource;
+    selection = undefined;
+    const networkSource = map?.getSource(networksSource) as
+      | VectorTileSource
+      | undefined;
     networkSource?.setTiles([`${networkTilesUrl}?${filter}`]);
   }
 
-  async function updateSelection(bssid: string) {
-    const source = map?.getSource(geojsonSource) as GeoJSONSource;
+  async function updateSelection(bssid: string | undefined) {
+    const source = map?.getSource(geojsonSource) as GeoJSONSource | undefined;
 
-    if (!bssid || bssid === "UNDEFINED") {
+    if (!bssid) {
       source?.setData({ type: "FeatureCollection", features: [] });
       return;
     }
 
-    const data = await getLocationInfo(bssid);
+    let data: FeatureCollection;
+    try {
+      data = await getLocationInfo(bssid);
+    } catch (error) {
+      console.error(error);
+      return;
+    }
+    // The selection may have changed, or been cleared by a sign-out, while this was loading.
+    if (selection !== bssid) return;
+
     const colorize = false;
     if (colorize) {
       const param = "level"; // "altitude", "time"
@@ -112,7 +138,7 @@
 
   const transformRequest: RequestTransformFunction = (url) => {
     if (url.startsWith(apiHost)) {
-      const token = authService.getToken();
+      const token = auth.token;
       if (!token) return;
 
       return {
@@ -124,90 +150,131 @@
   };
 
   async function getNetworkInfo(id: string): Promise<Feature | undefined> {
-    const res = await axios.get<FeatureCollection>(
+    const res = await api.get<FeatureCollection>(
       networkInfoUrl.replaceAll("{bssid}", id),
-      { headers: { Authorization: `Bearer ${authService.getToken()}` } },
     );
     return res.data.features[0];
   }
 
   async function getLocationInfo(id: string): Promise<FeatureCollection> {
-    const res = await axios.get<FeatureCollection>(
+    const res = await api.get<FeatureCollection>(
       locationsUrl.replaceAll("{bssid}", id),
-      { headers: { Authorization: `Bearer ${authService.getToken()}` } },
     );
     return res.data;
   }
 
-  function addVectorLayer(id: string, sourceLayer: string, color: string) {
-    map.addLayer({
-      id,
-      type: "circle",
-      source: networksSource,
-      "source-layer": sourceLayer,
-      paint: {
-        "circle-radius": 4,
-        "circle-color": color,
-      },
+  function addNetworkLayers() {
+    if (map.getSource(networksSource)) return;
+
+    map.addSource(networksSource, {
+      type: "vector",
+      maxzoom: 14,
+      tiles: [`${networkTilesUrl}?${untrack(() => filter)}`],
     });
 
-    map.on("click", id, async (e) => {
-      const feature = e.features?.[0];
-      if (!feature) return;
+    for (const [layer, color] of layers) {
+      // Below the selection layer, so a selected network's observations stay on top.
+      map.addLayer(
+        {
+          id: `networks-${layer}`,
+          type: "circle",
+          source: networksSource,
+          "source-layer": layer,
+          paint: {
+            "circle-radius": 4,
+            "circle-color": color,
+          },
+        },
+        geojsonSource,
+      );
+    }
 
-      const id = feature.id ?? feature.properties?._NetTopologySuite_id;
-      selection = id;
+    // One listener for all three layers, so a click on overlapping points opens one popup.
+    networkSubscriptions = [
+      map.on("click", networkLayerIds, onNetworkClick),
+      map.on("mouseenter", networkLayerIds, () => {
+        map.getCanvas().style.cursor = "pointer";
+      }),
+      map.on("mouseleave", networkLayerIds, () => {
+        map.getCanvas().style.cursor = "";
+      }),
+    ];
+  }
 
-      const info = await getNetworkInfo(id);
-      const props = info?.properties ?? { bssid: id };
+  function removeNetworkLayers() {
+    for (const subscription of networkSubscriptions) subscription.unsubscribe();
+    networkSubscriptions = [];
 
-      const html = Object.entries(props)
-        .filter(([_, v]) => v)
-        .map(([k, v]) => {
-          const key = escapeHTML(k);
-          const value =
-            k === "lasttime"
-              ? new Date(v).toLocaleString("de-DE")
-              : escapeHTML(v);
-          if (value == "") return "";
-          switch (key) {
-            case "type":
-              return `<span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-700/10 ring-inset">${value}</span>&nbsp;`;
-            case "bssid":
-              return `<span class="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-500/10 ring-inset">${value}</span><br/>`;
-            case "cap":
-              return (
-                value
-                  .replace(/^\[|\]$/g, "")
-                  .split("][")
-                  .join(";")
-                  .split(";")
-                  .filter((v) => v != "")
-                  .map(
-                    (v) =>
-                      `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-green-600/20 ring-inset">${v}</span>`,
-                  )
-                  .join("&nbsp;") + "</br>"
-              );
-            case "ssid":
-              return `<span class="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-yellow-600/20 ring-inset">${value}</span><br/>`;
-            case "lastlat":
-            case "lastlon":
-              return "";
-          }
-          return `${key}: ${value}<br/>`;
-        })
-        .join("");
+    for (const id of networkLayerIds) {
+      if (map.getLayer(id)) map.removeLayer(id);
+    }
+    if (map.getSource(networksSource)) map.removeSource(networksSource);
 
-      new Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
-    });
+    map.getCanvas().style.cursor = "";
+    popup?.remove();
+    popup = undefined;
+    selection = undefined;
+  }
 
-    map.on("mouseenter", id, () => {
-      map.getCanvas().style.cursor = "pointer";
-    });
-    map.on("mouseleave", id, () => {
-      map.getCanvas().style.cursor = "";
-    });
+  async function onNetworkClick(e: MapLayerMouseEvent) {
+    const feature = e.features?.[0];
+    if (!feature) return;
+
+    const id = feature.id ?? feature.properties?._NetTopologySuite_id;
+    selection = id;
+
+    let info: Feature | undefined;
+    try {
+      info = await getNetworkInfo(id);
+    } catch (error) {
+      console.error(error);
+      return;
+    }
+    // Another click, a filter change or a sign-out happened while this was loading.
+    if (selection !== id) return;
+
+    const props = info?.properties ?? { bssid: id };
+
+    const html = Object.entries(props)
+      .filter(([_, v]) => v)
+      .map(([k, v]) => {
+        const key = escapeHTML(k);
+        const value =
+          k === "lasttime"
+            ? new Date(v).toLocaleString("de-DE")
+            : escapeHTML(v);
+        if (value == "") return "";
+        switch (key) {
+          case "type":
+            return `<span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-blue-700/10 ring-inset">${value}</span>&nbsp;`;
+          case "bssid":
+            return `<span class="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-500/10 ring-inset">${value}</span><br/>`;
+          case "cap":
+            return (
+              value
+                .replace(/^\[|\]$/g, "")
+                .split("][")
+                .join(";")
+                .split(";")
+                .filter((v) => v != "")
+                .map(
+                  (v) =>
+                    `<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-green-600/20 ring-inset">${v}</span>`,
+                )
+                .join("&nbsp;") + "</br>"
+            );
+          case "ssid":
+            return `<span class="inline-flex items-center rounded-md bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-yellow-600/20 ring-inset">${value}</span><br/>`;
+          case "lastlat":
+          case "lastlon":
+            return "";
+        }
+        return `${key}: ${value}<br/>`;
+      })
+      .join("");
+
+    popup?.remove();
+    popup = new Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
   }
 
   function setupMap() {
@@ -249,16 +316,6 @@
     map.addControl(geolocateControl, "bottom-right");
 
     map.on("load", () => {
-      map.addSource(networksSource, {
-        type: "vector",
-        maxzoom: 14,
-        tiles: [`${networkTilesUrl}?${filter}`],
-      });
-
-      for (const [layer, color] of layers) {
-        addVectorLayer(`networks-${layer}`, layer, color);
-      }
-
       map.addSource(geojsonSource, {
         type: "geojson",
         data: {
@@ -277,6 +334,9 @@
         },
         filter: ["==", "$type", "Point"],
       });
+
+      // The network layers are added by an effect once the style is ready, if signed in.
+      styleLoaded = true;
     });
   }
 
