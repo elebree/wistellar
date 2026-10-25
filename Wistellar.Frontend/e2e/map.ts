@@ -6,6 +6,16 @@ export const dialog = (page: Page) => page.locator("dialog");
 export const popup = (page: Page) => page.locator(".maplibregl-popup");
 export const canvas = (page: Page) => page.locator(".maplibregl-canvas");
 
+/** Compare view parameters numerically, allowing the app to change their decimal formatting. */
+export function mapQuery(page: Page) {
+  const params = new URL(page.url()).searchParams;
+  params.sort();
+  return Array.from(params, ([name, value]) => ({
+    name,
+    value: ["z", "lat", "lon"].includes(name) ? Number(value) : value,
+  }));
+}
+
 /** Opens the map centered on a stub network, optionally with a stored session. */
 export async function visitMap(
   page: Page,

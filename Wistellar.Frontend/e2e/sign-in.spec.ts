@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect, isSignIn, isTile, stubToken } from "./stub-api";
-import { dialog, fillInSignIn, menuButton, openSignIn, visitMap } from "./map";
+import { dialog, fillInSignIn, mapQuery, menuButton, openSignIn, visitMap } from "./map";
 
 const submit = (page: Page) => page.locator('dialog button[type="submit"]');
 const alert = (page: Page) => page.locator('dialog [role="alert"]');
@@ -75,7 +75,7 @@ test.describe("sign-in dialog", () => {
   });
 
   test("signs in where the map is and loads networks with the token", async ({ page }) => {
-    const searchBefore = new URL(page.url()).search;
+    const queryBefore = mapQuery(page);
     const signInResponse = page.waitForResponse((response) => isSignIn(new URL(response.url())));
     const tileRequest = page.waitForRequest((request) => isTile(new URL(request.url())));
 
@@ -87,7 +87,7 @@ test.describe("sign-in dialog", () => {
     await expect(page.locator("#filter")).toBeVisible();
     const { token } = await (await signInResponse).json();
     expect((await (await tileRequest).allHeaders()).authorization).toBe(`Bearer ${token}`);
-    expect(new URL(page.url()).search).toBe(searchBefore);
+    expect(mapQuery(page)).toEqual(queryBefore);
   });
 
   test("focuses the password when the session expires", async ({ page }) => {
