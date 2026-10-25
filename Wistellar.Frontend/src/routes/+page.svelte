@@ -69,15 +69,6 @@
     goto(newUrl, { replaceState: false });
   }
 
-  function onMapError(ev: ErrorEvent) {
-    // A 401 on a tile request means the stored token expired or is no longer accepted.
-    if (ev.error?.status === 401) {
-      auth.expire();
-    } else {
-      console.error(ev);
-    }
-  }
-
   function updateQueryStringFromPosition(
     zoom: number,
     lat: number,
@@ -118,7 +109,6 @@
       {lat}
       lng={lon}
       signedIn={auth.signedIn}
-      onerror={onMapError}
     />
   {/if}
   <div class="maplibregl-control-container">

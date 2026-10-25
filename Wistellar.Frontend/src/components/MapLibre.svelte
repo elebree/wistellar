@@ -2,13 +2,11 @@
   import "maplibre-gl/dist/maplibre-gl.css";
   import { onMount, onDestroy, untrack } from "svelte";
   import { page } from "$app/state";
-  import { api } from "#lib/api.ts";
-  import { auth } from "#lib/auth.svelte.ts";
+  import { api, handleMapError, transformRequest } from "#lib/api.ts";
 
   import mapLibre, {
     type GeoJSONSource,
     type MapLayerMouseEvent,
-    type RequestTransformFunction,
     type Subscription,
     type VectorTileSource,
   } from "maplibre-gl";
@@ -23,12 +21,10 @@
     lat: number;
     /** Network tiles need a signed-in user, so their source and layers exist only while this is true. */
     signedIn: boolean;
-    onerror?: (ev: ErrorEvent) => void;
     onChangeView?: (zoom: number, lat: number, lng: number) => void;
   }
 
-  let { filter, zoom, lng, lat, signedIn, onerror, onChangeView }: Props =
-    $props();
+  let { filter, zoom, lng, lat, signedIn, onChangeView }: Props = $props();
 
   let map: mapLibre.Map;
   let mapContainer: HTMLElement;
@@ -135,19 +131,6 @@
     }
     source?.setData(data);
   }
-
-  const transformRequest: RequestTransformFunction = (url) => {
-    if (url.startsWith(apiHost)) {
-      const token = auth.token;
-      if (!token) return;
-
-      return {
-        url,
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: "include",
-      };
-    }
-  };
 
   async function getNetworkInfo(id: string): Promise<Feature | undefined> {
     const res = await api.get<FeatureCollection>(
@@ -286,7 +269,9 @@
       container: mapContainer,
       transformRequest,
     });
-    if (onerror) map.on("error", onerror);
+    map.on("error", (ev) => {
+      if (!handleMapError(ev)) console.error(ev);
+    });
     const onViewChangedEvent = () => {
       const zoom = map.getZoom();
       const center = map.getCenter();
