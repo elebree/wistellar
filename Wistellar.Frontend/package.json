@@ -20,19 +20,19 @@
 		"test:e2e:ui": "playwright test --ui"
 	},
 	"devDependencies": {
-		"@maplibre/geojson-vt": "^6.1.2",
+		"@maplibre/geojson-vt": "^6.3.0",
 		"@maplibre/vt-pbf": "^4.3.2",
 		"@playwright/test": "^1.64.1",
 		"@sveltejs/adapter-static": "^4.0.0",
-		"@sveltejs/kit": "^3.0.0",
+		"@sveltejs/kit": "^3.1.0",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@turf/circle": "^7.4.0",
 		"@types/geojson": "^7946.0.16",
-		"@types/node": "^26.6.4",
+		"@types/node": "^26.6.5",
 		"svelte": "^5.57.1",
-		"svelte-check": "^4.7.6",
-		"typescript": "^6.0.3",
-		"vite": "^8.3.2"
+		"svelte-check": "^4.7.7",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.5"
 	},
 	"dependencies": {
 		"@tailwindcss/vite": "^4.3.3",
