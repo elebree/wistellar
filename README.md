@@ -31,16 +31,18 @@ interactive map. Your survey data stays in a database on your own server.
 
 ### File import
 
-File import is API-only: the web interface has no upload form. See [HTTP API](#http-api) for how to
-upload with `curl` or any other HTTP client. The importer picks the format by content type or file
-extension (`.csv`, `.kml`, `.sqlite`, plus `.gz` and `.zip` wrappers), and tells the CSV formats apart
-by their first line.
+Sign in and choose **Import files** from the map's menu to upload CSV, KML, KMZ, ZIP or SQLite files,
+optionally GZip-compressed. Archives are unpacked on the server.
+You can select several files, follow their progress and review any warnings. The map refreshes when
+the import finishes. See [HTTP API](#http-api) for how to upload with `curl` or any other HTTP client.
+The importer picks the format by content type or file extension (`.csv`, `.kml`, `.sqlite`, plus
+`.gz`, `.zip` and `.kmz` wrappers), and tells the CSV formats apart by their first line.
 
 | Format | Notes |
 | --- | --- |
 | WiGLE CSV | The `WigleWifi-1.x` observation logs exported by wardriving apps |
 | WiGLE SQLite backup | A whole phone backup database, imported directly |
-| wifidb KML | Exports from wifidb.net |
+| wifidb KML / KMZ | Exports from wifidb.net; KMZ archives are unpacked on the server |
 | OpenCellID CSV | Public cell-tower dataset |
 | Mylnikov CSV | Public geolocation dataset |
 
@@ -133,9 +135,9 @@ type=W|E|B&ssid=cafe_%&time[gt]=7d&locations[gt]=5
 | `dwell[gt]`, `dwell[lt]` | Time between first and last observation, as a duration (`30m`, `12h`, `7d`) |
 | `time[gt]`, `time[lt]` | Last seen. Accepts relative offsets (`30m`, `12h`, `7d`, `3M`, `1y`), ISO dates, or Unix seconds |
 
-`range`, `locations` and `dwell` are recalculated only when the WiGLE app checks its upload status
-after an upload. Data added through [file import](#file-import) alone is not reflected in these three
-filters until that happens.
+`range`, `locations` and `dwell` are recalculated when the WiGLE app checks its upload status or the
+web interface finishes an import. When uploading directly through the API, request
+`GET /api/v2/file/transactions?pagestart=0` afterwards to update these three filters.
 
 ## HTTP API
 
