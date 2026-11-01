@@ -15,9 +15,8 @@ EXPOSE 8080
 # files, so nothing here has to run under emulation.
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
-# Supplied by BuildKit. This file needs BuildKit anyway for the cache mounts below, which
-# every Docker 23+ engine uses by default; the value here is only a fallback.
-ARG TARGETARCH=amd64
+# Supplied by BuildKit, which the cache mounts below need anyway.
+ARG TARGETARCH
 
 # Docker's architecture names are not .NET's, and `dotnet restore` has no --os switch - only
 # publish does - so the full RID is resolved once here and both steps read it back.
