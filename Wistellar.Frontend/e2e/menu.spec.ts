@@ -36,7 +36,7 @@ test.describe("menu", () => {
   test("shows the user and Sign out when signed in, and is named after the user", async ({ page }) => {
     await visitMap(page, { token: stubToken() });
     await menuButton(page).click();
-    await expect(page.getByRole("menuitem")).toHaveText(["Sign out"]);
+    await expect(page.getByRole("menuitem")).toHaveText(["Import files", "Sign out"]);
     await expect(page.getByRole("menu", { name: "Signed in as janedoe" })).toBeVisible();
   });
 });

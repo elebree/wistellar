@@ -3,11 +3,13 @@
   import { onMount } from "svelte";
   import MapLibre from "../components/MapLibre.svelte";
   import Login from "../components/Login.svelte";
+  import ImportFiles from "../components/ImportFiles.svelte";
   import AppMenu, { type MenuItem } from "../components/AppMenu.svelte";
   import { auth } from "#lib/auth.svelte.ts";
   import signInIcon from "#lib/icons/sign-in.svg?raw";
   import signOutIcon from "#lib/icons/sign-out.svg?raw";
   import userIcon from "#lib/icons/user.svg?raw";
+  import uploadIcon from "#lib/icons/upload.svg?raw";
   import Icon from "../components/Icon.svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
@@ -16,6 +18,8 @@
   let lon = $state<number>(8.53);
   let zoom = $state<number>(1.1);
   let filter = $state<string>("type=W|E|B|G|L|C|D|N&ssid=_%&time[gt]=1d");
+  let importOpen = $state(false);
+  let dataVersion = $state(0);
 
   // New entries go here; `visible` decides when each one shows.
   const menuItems: MenuItem[] = [
@@ -25,6 +29,13 @@
       icon: signInIcon,
       visible: () => !auth.signedIn,
       action: () => auth.openSignIn(),
+    },
+    {
+      id: "import-files",
+      label: "Import files",
+      icon: uploadIcon,
+      visible: () => auth.signedIn,
+      action: () => (importOpen = true),
     },
     {
       id: "sign-out",
@@ -53,6 +64,10 @@
 
   $effect(() => {
     updateQueryStringFromFilter(filter);
+  });
+
+  $effect(() => {
+    if (!auth.signedIn) importOpen = false;
   });
 
   function updateQueryStringFromFilter(filter: string) {
@@ -109,6 +124,7 @@
       {lat}
       lng={lon}
       signedIn={auth.signedIn}
+      {dataVersion}
     />
   {/if}
   <div class="maplibregl-control-container">
@@ -142,6 +158,12 @@
     </div>
   </div>
   <Login />
+  {#if auth.signedIn && importOpen}
+    <ImportFiles
+      onclose={() => (importOpen = false)}
+      onimport={() => (dataVersion += 1)}
+    />
+  {/if}
 </div>
 
 <style>

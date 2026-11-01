@@ -22,10 +22,12 @@
     lat: number;
     /** Network tiles need a signed-in user, so their source and layers exist only while this is true. */
     signedIn: boolean;
+    /** Incremented after an import to reload the visible network tiles. */
+    dataVersion?: number;
     onChangeView?: (zoom: number, lat: number, lng: number) => void;
   }
 
-  let { filter, zoom, lng, lat, signedIn, onChangeView }: Props = $props();
+  let { filter, zoom, lng, lat, signedIn, dataVersion = 0, onChangeView }: Props = $props();
 
   let map: mapLibre.Map;
   let mapContainer: HTMLElement;
@@ -69,6 +71,15 @@
     if (!styleLoaded) return;
     if (signedIn) addNetworkLayers();
     else removeNetworkLayers();
+  });
+  $effect(() => {
+    if (!styleLoaded || !signedIn || dataVersion === 0) return;
+    untrack(() => {
+      popup?.remove();
+      popup = undefined;
+      selection = undefined;
+      map.refreshTiles(networksSource);
+    });
   });
 
   function updateFilter(filter: string) {
