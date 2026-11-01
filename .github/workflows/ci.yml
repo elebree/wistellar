@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Build backend
+    name: Build and test backend
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -26,6 +26,9 @@ jobs:
       # cannot mask a C# one.
       - name: Build Wistellar.Core
         run: dotnet build Wistellar.Core/Wistellar.Core.csproj -c Release --warnaserror
+
+      - name: Run NUnit tests
+        run: dotnet test Wistellar.Tests/Wistellar.Tests.csproj -c Release --warnaserror
 
   frontend:
     name: Build front end
