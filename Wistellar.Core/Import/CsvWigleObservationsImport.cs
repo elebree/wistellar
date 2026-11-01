@@ -20,12 +20,14 @@ namespace Wistellar.Core.Import
                 && !string.IsNullOrWhiteSpace(props.AppRelease);
         }
 
-        public Task<IEnumerable<Observation>> Import(string header, TextReader reader)
+        public async Task<IEnumerable<Observation>> Import(string header, TextReader reader, CancellationToken ct = default)
         {
-            var csv = new CsvReader(reader, csvConfig);
+            using var csv = new CsvReader(reader, csvConfig, leaveOpen: true);
             csv.Context.RegisterClassMap<ObservationMap>(); // Register the mapping
-            var observations = csv.GetRecords<Observation>();
-            return Task.FromResult(observations);
+            var observations = new List<Observation>();
+            await foreach (var observation in csv.GetRecordsAsync<Observation>(ct))
+                observations.Add(observation);
+            return observations;
         }
     }
 

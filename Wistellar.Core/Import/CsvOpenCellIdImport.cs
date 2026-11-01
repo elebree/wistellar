@@ -35,16 +35,22 @@ namespace Wistellar.Server.Import
             return false;
         }
 
-        public Task<IEnumerable<Observation>> Import(string header, TextReader reader)
+        public async Task<IEnumerable<Observation>> Import(string header, TextReader reader, CancellationToken ct = default)
         {
             var columns = header.Split(",").ToArray();
-            var csv = new CsvReader(new StringReader(header), csvConfig);
             var containsHeader = (columns.Length == headers.Length && headers.Zip(columns).All(x => x.First.Equals(x.Second, StringComparison.CurrentCultureIgnoreCase)));
-            var firstTower = containsHeader ? [] : csv.GetRecords<CellTower>().ToArray();
-            csv = new CsvReader(reader, csvConfig);
-            var towers = csv.GetRecords<CellTower>();
+            var observations = new List<Observation>();
+            if (!containsHeader)
+            {
+                using var firstReader = new CsvReader(new StringReader(header), csvConfig);
+                await foreach (var tower in firstReader.GetRecordsAsync<CellTower>(ct))
+                    observations.Add(Map(tower));
+            }
 
-            return Task.FromResult(firstTower.Concat(towers).Select(Map));
+            using var csv = new CsvReader(reader, csvConfig, leaveOpen: true);
+            await foreach (var tower in csv.GetRecordsAsync<CellTower>(ct))
+                observations.Add(Map(tower));
+            return observations;
         }
 
         private Observation Map(CellTower tower)

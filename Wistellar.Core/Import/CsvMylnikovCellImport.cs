@@ -33,14 +33,13 @@ namespace Wistellar.Core.Import
 
             return false;
         }
-        public Task<IEnumerable<Observation>> Import(string header, TextReader reader)
+        public async Task<IEnumerable<Observation>> Import(string header, TextReader reader, CancellationToken ct = default)
         {
-            var csv = new CsvReader(reader, csvConfig);
-            var towers = csv.GetRecords<MylnikovCellTower>()
-                .Select(Map)
-                .ToArray();
-
-            return Task.FromResult<IEnumerable<Observation>>(towers);
+            using var csv = new CsvReader(reader, csvConfig, leaveOpen: true);
+            var observations = new List<Observation>();
+            await foreach (var tower in csv.GetRecordsAsync<MylnikovCellTower>(ct))
+                observations.Add(Map(tower));
+            return observations;
         }
 
         private Observation Map(MylnikovCellTower tower)

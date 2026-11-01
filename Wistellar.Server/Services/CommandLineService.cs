@@ -9,7 +9,7 @@ namespace Wistellar.Server.Services
         {
             try
             {
-                if (args.Length == 0)
+                if (args.Length == 0 || args[0] is "--help" or "-h")
                 {
                     PrintUsage();
                     return;

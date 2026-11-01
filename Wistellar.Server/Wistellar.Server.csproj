@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Wistellar.Core\Wistellar.Core.csproj" />
-    <ProjectReference Include="..\Wistellar.Frontend\Wistellar.Frontend.esproj">
+    <ProjectReference Include="..\Wistellar.Frontend\Wistellar.Frontend.esproj" Condition="'$(BuildFrontend)' != 'false'">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>
@@ -47,7 +47,7 @@
 
   <!-- Publish gets the built SPA into wwwroot through the JavaScript SDK's static web assets, but a
        plain build does not, so the exe in bin/ would serve 404s. Copy dist/ next to it instead. -->
-  <Target Name="CopySpaToOutput" AfterTargets="Build">
+  <Target Name="CopySpaToOutput" AfterTargets="Build" Condition="'$(BuildFrontend)' != 'false'">
     <ItemGroup>
       <_SpaFiles Include="$(SpaRoot)\dist\**" />
     </ItemGroup>

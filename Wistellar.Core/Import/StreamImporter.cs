@@ -28,7 +28,8 @@ namespace Wistellar.Core.Import
             var timer = new Stopwatch();
             string warning = "";
             timer.Start();
-            var ext = Path.GetExtension(fileName);
+            var ext = Path.GetExtension(fileName).ToLowerInvariant();
+            var isKmz = ext == ".kmz" || contentType == "application/vnd.google-earth.kmz";
             bool success = false;
 
             if (contentType.StartsWith(MediaTypeNames.Multipart.FormData + ";"))
@@ -55,7 +56,7 @@ namespace Wistellar.Core.Import
                 }
                 success = result.All(r => r.Success);
             }
-            else if (contentType == "application/x-gzip" || ext == ".gz")
+            else if (contentType == "application/gzip" || contentType == "application/x-gzip" || ext == ".gz")
             {
                 // Decompress GZip stream
                 await using var gzipStream = new GZipStream(stream, CompressionMode.Decompress, leaveOpen: true);
@@ -72,15 +73,22 @@ namespace Wistellar.Core.Import
             else if (
                 contentType == MediaTypeNames.Application.Zip ||
                 contentType == "application/x-zip-compressed" ||
-                ext == ".zip")
+                ext == ".zip" || isKmz)
             {
-                using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: true);
+                // Non-seekable request bodies must be read asynchronously. ZipArchive buffers
+                // them internally so it can seek while reading the archive's directory.
+                await using var archive = await ZipArchive.CreateAsync(
+                    stream, ZipArchiveMode.Read, leaveOpen: true,
+                    entryNameEncoding: null, cancellationToken: ct);
                 foreach (var entry in archive.Entries)
                 {
                     if (string.IsNullOrEmpty(entry.Name)) // Skip directories
                         continue;
+                    // KMZ packages include images and other resources alongside their KML data.
+                    if (isKmz && !Path.GetExtension(entry.Name).Equals(".kml", StringComparison.OrdinalIgnoreCase))
+                        continue;
 
-                    await using var entryStream = entry.Open(); // stream-based, memory-efficient
+                    await using var entryStream = await entry.OpenAsync(ct);
                     var innerFileName = entry.FullName;
 
                     result = [
@@ -95,7 +103,9 @@ namespace Wistellar.Core.Import
                     ];
                 }
 
-                success = result.All(r => r.Success);
+                success = result.Count > 0 && result.All(r => r.Success);
+                if (result.Count == 0)
+                    warning = isKmz ? "KMZ archive contains no KML files" : "Archive contains no importable files";
             }
             else if (contentType == "application/vnd.google-earth.kml+xml" || ext == ".kml")
             {
@@ -117,7 +127,7 @@ namespace Wistellar.Core.Import
                         if (importer.Detect(contentType, header))
                         {
                             logger.LogInformation("Import using {importer}", importer.Name);
-                            observations = await importer.Import(header, reader);
+                            observations = await importer.Import(header, reader, ct);
                             break;
                         }
                     }
@@ -129,11 +139,12 @@ namespace Wistellar.Core.Import
                 }
                 else
                 {
+                    ct.ThrowIfCancellationRequested();
                     await databaseService.AddObservations(observations.ToArray());
                     success = true;
                 }
             }
-            else if (fileName.Split(".").Last() == "sqlite")
+            else if (ext == ".sqlite")
             {
                 // Stage the upload under a unique name. The previous fixed name in the process
                 // working directory collided between concurrent uploads and was never cleaned up.
@@ -186,7 +197,9 @@ namespace Wistellar.Core.Import
         private static string GetContentType(string fileName)
         {
             new FileExtensionContentTypeProvider().TryGetContentType(fileName, out string? contentType);
-            return contentType;
+            // Unknown extensions still need to reach dispatch by file name, including KML entries
+            // inside KMZ/ZIP/GZip streams and SQLite backups.
+            return contentType ?? MediaTypeNames.Application.Octet;
 
         }
     }
