@@ -12,6 +12,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Wistellar.Core", "Wistellar
 EndProject
 Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "Wistellar.Frontend", "Wistellar.Frontend\Wistellar.Frontend.esproj", "{3FAD06B3-9F65-470A-86F9-189D257C455D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wistellar.Tests", "Wistellar.Tests\Wistellar.Tests.csproj", "{B6C80B03-9906-40DC-96F6-E10ED7C8C178}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,6 +34,10 @@ Global
 		{3FAD06B3-9F65-470A-86F9-189D257C455D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3FAD06B3-9F65-470A-86F9-189D257C455D}.Release|Any CPU.Build.0 = Release|Any CPU
 		{3FAD06B3-9F65-470A-86F9-189D257C455D}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{B6C80B03-9906-40DC-96F6-E10ED7C8C178}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B6C80B03-9906-40DC-96F6-E10ED7C8C178}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B6C80B03-9906-40DC-96F6-E10ED7C8C178}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B6C80B03-9906-40DC-96F6-E10ED7C8C178}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
