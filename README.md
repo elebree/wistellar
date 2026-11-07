@@ -45,12 +45,14 @@ The importer picks the format by content type or file extension (`.csv`, `.kml`,
 | wifidb KML / KMZ | Exports from wifidb.net; KMZ archives are unpacked on the server |
 | OpenCellID CSV | Public cell-tower dataset |
 | Mylnikov CSV | Public geolocation dataset |
+| Network Survey CSV | The per-technology `craxiom-*.csv` logs (Wi-Fi, Bluetooth, LTE, NR, UMTS, GSM, CDMA) |
 
 ### Survey apps
 
 | App | Status |
 | --- | --- |
 | [WiGLE WiFi Wardriving](https://github.com/wiglenet/wigle-wifi-wardriving) | **Supported** — see [Survey app setup](#survey-app-setup). |
+| [Network Survey](https://github.com/christianrowlands/android-network-survey) | **Import only** — upload its CSV log files. |
 
 ## Quick start with Docker
 

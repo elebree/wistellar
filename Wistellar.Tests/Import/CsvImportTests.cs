@@ -29,6 +29,8 @@ public sealed class CsvImportTests
     [TestCase("opencellid", true)]
     [TestCase("opencellid", false)]
     [TestCase("mylnikov", true)]
+    [TestCase("networksurvey-wifi", true)]
+    [TestCase("networksurvey-lte", true)]
     public async Task ReadsAllRecordsWithoutSynchronousStreamOperations(string format, bool includeHeader)
     {
         var data = Encoding.UTF8.GetBytes(CsvFixture.Document(format, includeHeader: includeHeader));
@@ -46,15 +48,17 @@ public sealed class CsvImportTests
             Assert.That(observations.Select(observation => observation.MAC).Distinct().Count(), Is.EqualTo(CsvFixture.UploadRowCount));
             Assert.That(observations[0].CurrentLatitude, Is.EqualTo(52.52));
             Assert.That(observations[0].CurrentLongitude, Is.EqualTo(13.405));
-            Assert.That(observations[0].MAC, Is.EqualTo(format == "wigle" ? "02:00:00:00:00:00" : "26201_100_1000000"));
-            Assert.That(observations[^1].MAC, Is.EqualTo(format == "wigle" ? "02:00:00:00:03:FF" : "26201_100_1001023"));
-            Assert.That(observations[0].Type, Is.EqualTo(format switch { "wigle" => "WIFI", "mylnikov" => "WCDMA", _ => "LTE" }));
+            Assert.That(observations[0].MAC, Is.EqualTo(CsvFixture.IsWifi(format) ? "02:00:00:00:00:00" : "26201_100_1000000"));
+            Assert.That(observations[^1].MAC, Is.EqualTo(CsvFixture.IsWifi(format) ? "02:00:00:00:03:FF" : "26201_100_1001023"));
+            Assert.That(observations[0].Type, Is.EqualTo(format switch { "mylnikov" => "WCDMA", _ when CsvFixture.IsWifi(format) => "WIFI", _ => "LTE" }));
         }
     }
 
     [TestCase("wigle")]
     [TestCase("opencellid")]
     [TestCase("mylnikov")]
+    [TestCase("networksurvey-wifi")]
+    [TestCase("networksurvey-lte")]
     public async Task ReturnedObservationsDoNotDependOnAnOpenReader(string format)
     {
         using var reader = new StringReader(CsvFixture.Document(format, rowCount: 3));
@@ -70,6 +74,8 @@ public sealed class CsvImportTests
     [TestCase("wigle")]
     [TestCase("opencellid")]
     [TestCase("mylnikov")]
+    [TestCase("networksurvey-wifi")]
+    [TestCase("networksurvey-lte")]
     public async Task HeaderOnlyFilesProduceNoObservations(string format)
     {
         using var reader = new StringReader(CsvFixture.Document(format, rowCount: 0));
@@ -83,6 +89,8 @@ public sealed class CsvImportTests
     [TestCase("wigle")]
     [TestCase("opencellid")]
     [TestCase("mylnikov")]
+    [TestCase("networksurvey-wifi")]
+    [TestCase("networksurvey-lte")]
     public async Task HonorsCancellationBeforeReturningRecords(string format)
     {
         using var reader = new StringReader(CsvFixture.Document(format, rowCount: 3));

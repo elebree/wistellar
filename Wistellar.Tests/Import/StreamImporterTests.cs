@@ -43,6 +43,7 @@ public sealed class StreamImporterTests
             .AddSingleton<ITextImport>(new CsvOpenCellIdImport(resolver))
             .AddSingleton<ITextImport>(new CsvMylnikovCellImport(resolver))
             .AddSingleton<ITextImport>(new CsvWigleObservationsImport())
+            .AddSingleton<ITextImport>(new CsvNetworkSurveyImport(NullLogger<CsvNetworkSurveyImport>.Instance, resolver))
             .BuildServiceProvider();
         logger = new RecordingLogger<StreamImporter>();
         importer = new StreamImporter(logger, new DatabaseService(NullLoggerFactory.Instance, context), services);
@@ -89,6 +90,10 @@ public sealed class StreamImporterTests
     [TestCase("opencellid", true, false)]
     [TestCase("mylnikov", false, true)]
     [TestCase("mylnikov", true, true)]
+    [TestCase("networksurvey-wifi", false, true)]
+    [TestCase("networksurvey-wifi", true, true)]
+    [TestCase("networksurvey-lte", false, true)]
+    [TestCase("networksurvey-lte", true, true)]
     public async Task ImportsLargeCsvUploadsWithoutSynchronousRequestReads(string format, bool gzip, bool includeHeader)
     {
         var data = Encoding.UTF8.GetBytes(CsvFixture.Document(format, includeHeader: includeHeader));
@@ -100,10 +105,41 @@ public sealed class StreamImporterTests
         AssertSuccessful(results);
         Assert.That(await context.Networks.CountAsync(), Is.EqualTo(CsvFixture.UploadRowCount));
         Assert.That(await context.Locations.CountAsync(), Is.EqualTo(CsvFixture.UploadRowCount));
-        var firstId = format == "wigle" ? "02:00:00:00:00:00" : "26201_100_1000000";
-        var lastId = format == "wigle" ? "02:00:00:00:03:FF" : "26201_100_1001023";
+        var firstId = CsvFixture.IsWifi(format) ? "02:00:00:00:00:00" : "26201_100_1000000";
+        var lastId = CsvFixture.IsWifi(format) ? "02:00:00:00:03:FF" : "26201_100_1001023";
         Assert.That(await context.Networks.AnyAsync(network => network.BSSID == firstId), Is.True);
         Assert.That(await context.Networks.AnyAsync(network => network.BSSID == lastId), Is.True);
+    }
+
+    [Test]
+    public async Task ImportsZippedNetworkSurveyLogsOfEachTechnology()
+    {
+        var data = ArchiveFixture.Zip(CompressionLevel.Optimal,
+            ("craxiom-bluetooth-20260329-195821.csv", Encoding.UTF8.GetBytes(
+                NetworkSurveyFixture.Document(NetworkSurveyFixture.BluetoothColumns, NetworkSurveyFixture.BluetoothRow()))),
+            ("craxiom-lte-20260329-195823.csv", Encoding.UTF8.GetBytes(
+                NetworkSurveyFixture.Document(NetworkSurveyFixture.LteColumns, NetworkSurveyFixture.LteRow()))),
+            ("craxiom-wifi-20260329-195826.csv", Encoding.UTF8.GetBytes(
+                NetworkSurveyFixture.Document(NetworkSurveyFixture.WifiColumns, NetworkSurveyFixture.WifiRow()))));
+
+        var results = await ImportUpload("survey.zip", data);
+
+        AssertSuccessful(results);
+        var networks = await context.Networks.OrderBy(network => network.BSSID).ToListAsync();
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(networks.Select(network => (network.BSSID, network.Type, network.Capabilities, network.BestLevel)),
+                Is.EqualTo(new[]
+                {
+                    ("02:00:00:00:00:01", "W", "[WPA3]", -70),
+                    ("02:00:00:00:00:02", "E", "DUAL;RANDOM", -65),
+                    ("26201_100_1000000", "L", "LTE;26201", -117),
+                }));
+            Assert.That(networks.Select(network => (network.BestLatitude, network.BestLongitude)), Is.All.EqualTo((52.52, 13.405)));
+            // 2026-03-29T19:58:26+02:00, stored as UTC milliseconds.
+            Assert.That(networks[0].LastSeen, Is.EqualTo(1774807106000));
+            Assert.That(await context.Locations.CountAsync(), Is.EqualTo(3));
+        }
     }
 
     [TestCase(CompressionLevel.NoCompression)]

@@ -165,6 +165,7 @@ namespace Wistellar.Server.Config
             services.AddSingleton<ITextImport, CsvOpenCellIdImport>();
             services.AddSingleton<ITextImport, CsvMylnikovCellImport>();
             services.AddSingleton<ITextImport, CsvWigleObservationsImport>();
+            services.AddSingleton<ITextImport, CsvNetworkSurveyImport>();
             services.AddScoped<StreamImporter>();
 
             // CORS configuration

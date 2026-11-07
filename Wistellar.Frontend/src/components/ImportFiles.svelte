@@ -119,8 +119,8 @@
     <div>
       <h2 id="{id}-title" class="text-2xl/9 font-bold tracking-tight text-gray-900">Import files</h2>
       <p id="{id}-description" class="mt-2 text-sm text-gray-600">
-        Upload WiGLE CSV logs or SQLite backups, OpenCellID or Mylnikov CSV datasets, or wifidb
-        KML/KMZ exports. GZip and ZIP archives are supported.
+        Upload WiGLE CSV logs or SQLite backups, Network Survey CSV logs, OpenCellID or Mylnikov
+        CSV datasets, or wifidb KML/KMZ exports. GZip and ZIP archives are supported.
       </p>
     </div>
 
