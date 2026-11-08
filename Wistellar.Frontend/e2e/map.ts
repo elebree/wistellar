@@ -3,7 +3,7 @@ import { positionOf, user } from "./stub-api";
 
 export const menuButton = (page: Page) => page.locator(".app-menu > button");
 export const dialog = (page: Page) => page.locator("dialog");
-export const popup = (page: Page) => page.locator(".maplibregl-popup");
+export const panel = (page: Page) => page.getByRole("region", { name: "Network details" });
 export const canvas = (page: Page) => page.locator(".maplibregl-canvas");
 
 /** Compare view parameters numerically, allowing the app to change their decimal formatting. */
@@ -63,17 +63,17 @@ export async function waitForNetworkAtCenter(page: Page) {
   }).toPass();
 }
 
-/** Clicks the network at the map's center and waits for its popup. */
-export async function openPopupAtCenter(page: Page) {
+/** Clicks the network at the map's center and waits for its details panel. */
+export async function openPanelAtCenter(page: Page) {
   await waitForNetworkAtCenter(page);
   const { x, y } = await canvasCenter(page);
   await page.mouse.click(x, y);
-  await expect(popup(page)).toBeVisible();
+  await expect(panel(page)).toBeVisible();
 }
 
-/** The value cell of a popup detail row. */
+/** The value cell of a details panel row. */
 export function detail(page: Page, label: string) {
-  return popup(page)
+  return panel(page)
     .locator("dt")
     .filter({ hasText: new RegExp(`^${label}$`) })
     .locator("xpath=following-sibling::dd[1]");

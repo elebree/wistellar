@@ -87,7 +87,7 @@ run = [
 description = "Manage users: mise run user -- --add-user --username test --password test --role admin"
 dir = "{{config_root}}/Wistellar.Server"
 # Enter CLI mode even without arguments; user management does not need the SPA.
-run = "dotnet run -p:BuildFrontend=false -- --manage-users"
+run = "dotnet run -p:BuildFrontend=false --"
 
 [tasks."ef:list"]
 description = "List EF Core migrations"

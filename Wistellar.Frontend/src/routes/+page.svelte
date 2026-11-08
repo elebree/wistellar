@@ -5,6 +5,7 @@
   import Login from "../components/Login.svelte";
   import ImportFiles from "../components/ImportFiles.svelte";
   import AppMenu, { type MenuItem } from "../components/AppMenu.svelte";
+  import NetworkPanel from "../components/NetworkPanel.svelte";
   import { auth } from "#lib/auth.svelte.ts";
   import signInIcon from "#lib/icons/sign-in.svg?raw";
   import signOutIcon from "#lib/icons/sign-out.svg?raw";
@@ -20,6 +21,7 @@
   let filter = $state<string>("type=W|E|B|G|L|C|D|N&ssid=_%&time[gt]=1d");
   let importOpen = $state(false);
   let dataVersion = $state(0);
+  let network = $state<Record<string, unknown>>();
 
   // New entries go here; `visible` decides when each one shows.
   const menuItems: MenuItem[] = [
@@ -125,9 +127,13 @@
       lng={lon}
       signedIn={auth.signedIn}
       {dataVersion}
+      bind:network
     />
   {/if}
   <div class="maplibregl-control-container">
+    {#if network}
+      <NetworkPanel properties={network} onclose={() => (network = undefined)} />
+    {/if}
     <div class=" maplibregl-ctrl-top-left">
       {#if auth.signedIn}
         <input

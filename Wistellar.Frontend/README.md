@@ -48,7 +48,7 @@ build `Wistellar.Core` directly to iterate on C# alone.
 | Path | Contents |
 | --- | --- |
 | `src/routes/` | SvelteKit routes: the map page and the login page |
-| `src/components/` | `MapLibre.svelte` (map, layers, popups) and `Login.svelte` |
+| `src/components/` | `MapLibre.svelte` (map, layers, selection), `NetworkPanel.svelte` (details of a clicked network) and `Login.svelte` |
 | `src/lib/authService.ts` | Token storage and expiry checks against the JWT |
 | `static/liberty.json` | The base map style |
 

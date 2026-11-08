@@ -1,19 +1,19 @@
 <script lang="ts">
   import "maplibre-gl/dist/maplibre-gl.css";
-  import { onMount, onDestroy, untrack, mount, unmount } from "svelte";
+  import { onMount, onDestroy, untrack } from "svelte";
   import { page } from "$app/state";
   import { api, handleMapError, transformRequest } from "#lib/api.ts";
-  import NetworkPopup from "./NetworkPopup.svelte";
 
   import mapLibre, {
     type GeoJSONSource,
-    type MapLayerMouseEvent,
+    type MapMouseEvent,
+    type MapGeoJSONFeature,
     type Subscription,
     type VectorTileSource,
   } from "maplibre-gl";
   import type { Feature, FeatureCollection } from "geojson";
 
-  const { Map, NavigationControl, GeolocateControl, Popup } = mapLibre;
+  const { Map, NavigationControl, GeolocateControl } = mapLibre;
 
   interface Props {
     filter: string;
@@ -25,15 +25,28 @@
     /** Incremented after an import to reload the visible network tiles. */
     dataVersion?: number;
     onChangeView?: (zoom: number, lat: number, lng: number) => void;
+    /**
+     * Details of the network last clicked, for the page to show. Cleared by a click on an empty spot of
+     * the map, an import and a sign-out; the page clears it to close its panel.
+     */
+    network?: Record<string, unknown>;
   }
 
-  let { filter, zoom, lng, lat, signedIn, dataVersion = 0, onChangeView }: Props = $props();
+  let {
+    filter,
+    zoom,
+    lng,
+    lat,
+    signedIn,
+    dataVersion = 0,
+    onChangeView,
+    network = $bindable(),
+  }: Props = $props();
 
   let map: mapLibre.Map;
   let mapContainer: HTMLElement;
   let styleLoaded = $state(false);
   let selection = $state<string>();
-  let popup: mapLibre.Popup | undefined;
   let networkSubscriptions: Subscription[] = [];
 
   const networksSource = "networks";
@@ -75,8 +88,7 @@
   $effect(() => {
     if (!styleLoaded || !signedIn || dataVersion === 0) return;
     untrack(() => {
-      popup?.remove();
-      popup = undefined;
+      network = undefined;
       selection = undefined;
       map.refreshTiles(networksSource);
     });
@@ -170,9 +182,8 @@
       );
     }
 
-    // One listener for all three layers, so a click on overlapping points opens one popup.
     networkSubscriptions = [
-      map.on("click", networkLayerIds, onNetworkClick),
+      map.on("click", onMapClick),
       map.on("mouseenter", networkLayerIds, () => {
         map.getCanvas().style.cursor = "pointer";
       }),
@@ -192,15 +203,21 @@
     if (map.getSource(networksSource)) map.removeSource(networksSource);
 
     map.getCanvas().style.cursor = "";
-    popup?.remove();
-    popup = undefined;
+    network = undefined;
     selection = undefined;
   }
 
-  async function onNetworkClick(e: MapLayerMouseEvent) {
-    const feature = e.features?.[0];
-    if (!feature) return;
+  /**
+   * One listener for the whole map: a click on a network selects it, even where points of several
+   * layers overlap, and a click anywhere else closes the details.
+   */
+  function onMapClick(e: MapMouseEvent) {
+    const [feature] = map.queryRenderedFeatures(e.point, { layers: networkLayerIds });
+    if (feature) selectNetwork(feature);
+    else network = undefined;
+  }
 
+  async function selectNetwork(feature: MapGeoJSONFeature) {
     const id = feature.id ?? feature.properties?._NetTopologySuite_id;
     selection = id;
 
@@ -209,28 +226,14 @@
       info = await getNetworkInfo(id);
     } catch (error) {
       console.error(error);
+      // Don't leave the previous network's details up next to this network's observations.
+      if (selection === id) network = undefined;
       return;
     }
     // Another click, a filter change or a sign-out happened while this was loading.
     if (selection !== id) return;
 
-    const properties = info?.properties ?? { bssid: id };
-
-    popup?.remove();
-    const current = new Popup({
-      className: "network-popup",
-      closeButton: false,
-      maxWidth: "none",
-      offset: 10,
-    });
-    const content = document.createElement("div");
-    const component = mount(NetworkPopup, {
-      target: content,
-      props: { properties, onclose: () => current.remove() },
-    });
-    current.on("close", () => unmount(component));
-    current.setLngLat(e.lngLat).setDOMContent(content).addTo(map);
-    popup = current;
+    network = info?.properties ?? { bssid: id };
   }
 
   function setupMap() {
@@ -331,17 +334,5 @@
 
   .watermark img {
     width: 16px;
-  }
-
-  /* NetworkPopup brings its own panel, so strip MapLibre's box and tip around it. */
-  :global(.network-popup .maplibregl-popup-content) {
-    padding: 0;
-    background: none;
-    border-radius: 0;
-    box-shadow: none;
-  }
-
-  :global(.network-popup .maplibregl-popup-tip) {
-    display: none;
   }
 </style>

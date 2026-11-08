@@ -4,8 +4,8 @@ import {
   detail,
   dialog,
   menuButton,
-  openPopupAtCenter,
-  popup,
+  openPanelAtCenter,
+  panel,
   visitMap,
   waitForNetworkAtCenter,
   zoomOut,
@@ -21,68 +21,77 @@ test.describe("networks, signed in", () => {
     expect(await api.style[0].allHeaders()).not.toHaveProperty("authorization");
   });
 
-  test("opens a popup with the network's details", async ({ page }) => {
+  test("opens a panel with the network's details", async ({ page }) => {
     await visitMap(page, { token });
-    await openPopupAtCenter(page);
-    await expect(popup(page)).toHaveCount(1);
-    await expect(popup(page).getByText("00:00:00:00:00:01", { exact: true })).toBeVisible();
-    await expect(popup(page).getByText("Stub WiFi One", { exact: true })).toBeVisible();
-    await expect(popup(page).locator("span.bg-green-50")).toHaveText(["WPA2-PSK-CCMP", "ESS"]);
+    await openPanelAtCenter(page);
+    await expect(panel(page)).toHaveCount(1);
+    await expect(panel(page).getByText("00:00:00:00:00:01", { exact: true })).toBeVisible();
+    await expect(panel(page).getByText("Stub WiFi One", { exact: true })).toBeVisible();
+    await expect(panel(page).locator("span.bg-green-50")).toHaveText(["WPA2-PSK-CCMP", "ESS"]);
     await expect(detail(page, "Last seen")).toHaveText(/^\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}:\d{2}$/);
     await expect(detail(page, "Dwell")).toHaveText("1 h 2 min");
     await expect(detail(page, "Range")).toHaveText("0");
     await expect(detail(page, "Vendor")).toHaveText("Stub Vendor");
   });
 
-  test("opens one popup where networks of two layers overlap", async ({ page, api }) => {
+  test("shows the details on the left under the filter box, not at the clicked point", async ({ page }) => {
+    await visitMap(page, { token });
+    await openPanelAtCenter(page);
+    const filter = (await page.locator("#filter").boundingBox())!;
+    const box = (await panel(page).boundingBox())!;
+    expect(Math.abs(box.x - filter.x), "left edge lines up with the filter box").toBeLessThan(1);
+    expect(box.y - (filter.y + filter.height), "10px below the filter box").toBeCloseTo(10, 0);
+    expect(box.x + box.width, "ends left of the clicked point at the center").toBeLessThan(640);
+  });
+
+  test("opens one panel where networks of two layers overlap", async ({ page, api }) => {
     await visitMap(page, { at: "00:00:00:00:00:02", token });
     await waitForNetworkAtCenter(page);
     await canvas(page).click();
-    await expect(popup(page)).toHaveCount(1);
+    await expect(panel(page)).toHaveCount(1);
     await page.waitForTimeout(500);
     expect(api.networkInfo).toHaveLength(1);
   });
 
   test("shows markup in an SSID as text", async ({ page }) => {
     await visitMap(page, { at: "00:00:00:00:00:04", token });
-    await openPopupAtCenter(page);
+    await openPanelAtCenter(page);
     const ssid = '<b>Stub & "Markup"</b><img src=x onerror=window.__xss=1>';
-    await expect(popup(page).getByText(ssid, { exact: true })).toBeVisible();
-    await expect(popup(page).locator("b, img")).toHaveCount(0);
+    await expect(panel(page).getByText(ssid, { exact: true })).toBeVisible();
+    await expect(panel(page).locator("b, img")).toHaveCount(0);
     expect(await page.evaluate(() => (window as { __xss?: number }).__xss)).toBeUndefined();
   });
 
-  test("draws the popup with the same panel style as the menu", async ({ page }) => {
+  test("draws the details panel with the same style as the menu", async ({ page }) => {
     await visitMap(page, { token });
-    await openPopupAtCenter(page);
+    await openPanelAtCenter(page);
     await menuButton(page).click();
     const panelStyle = (el: Element) => {
       const style = getComputedStyle(el);
       return [style.borderRadius, style.padding, style.boxShadow];
     };
     const menuStyle = await page.getByRole("menu").locator("xpath=..").evaluate(panelStyle);
-    const popupStyle = await page.locator(".maplibregl-popup-content > div > div").first().evaluate(panelStyle);
-    expect(popupStyle).toEqual(menuStyle);
+    expect(await panel(page).evaluate(panelStyle)).toEqual(menuStyle);
   });
 
-  test("closes the popup with its button and with a click elsewhere on the map", async ({ page }) => {
+  test("closes the panel with its button and with a click elsewhere on the map", async ({ page }) => {
     await visitMap(page, { token });
-    await openPopupAtCenter(page);
-    await popup(page).getByRole("button", { name: "Close" }).click();
-    await expect(popup(page)).toHaveCount(0);
+    await openPanelAtCenter(page);
+    await panel(page).getByRole("button", { name: "Close" }).click();
+    await expect(panel(page)).toHaveCount(0);
 
-    await openPopupAtCenter(page);
+    await openPanelAtCenter(page);
     await canvas(page).click({ position: { x: 150, y: 650 } });
-    await expect(popup(page)).toHaveCount(0);
+    await expect(panel(page)).toHaveCount(0);
   });
 
-  test("signs out: removes popup and filter, forgets the token, stops loading networks", async ({ page, api }) => {
+  test("signs out: removes panel and filter, forgets the token, stops loading networks", async ({ page, api }) => {
     await visitMap(page, { token });
-    await openPopupAtCenter(page);
+    await openPanelAtCenter(page);
     await menuButton(page).click();
     await page.getByRole("menuitem", { name: "Sign out" }).click();
 
-    await expect(popup(page)).toHaveCount(0);
+    await expect(panel(page)).toHaveCount(0);
     await expect(page.locator("#filter")).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem("access_token"))).toBeNull();
     const before = api.geo.length;
