@@ -13,7 +13,7 @@ EXPOSE 8080
 # Pinned to the build machine's own architecture with $BUILDPLATFORM. The .NET output is
 # cross-compiled for the target, and the front end compiles to architecture-independent static
 # files, so nothing here has to run under emulation.
-FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG BUILD_CONFIGURATION=Release
 # Supplied by BuildKit, which the cache mounts below need anyway.
 ARG TARGETARCH
