@@ -12,8 +12,13 @@ export default defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL,
-    // Vite serves the ASP.NET dev certificate, which the test browser doesn't trust.
+    // Vite serves the ASP.NET dev certificate, which the test browser doesn't trust: it is only
+    // trusted where `dotnet dev-certs https --trust` has run, and never on a CI runner.
     ignoreHTTPSErrors: true,
+    // ignoreHTTPSErrors doesn't reach the service worker: Chrome refuses to register one whose
+    // script came with a certificate error unless this switch is set, so e2e/pwa.spec.ts would
+    // time out waiting for it wherever the certificate isn't trusted.
+    launchOptions: { args: ["--ignore-certificate-errors"] },
     // The installed Chrome, so there is no browser to download. Drop this line to use Playwright's
     // own Chromium instead (after `pnpm exec playwright install chromium`).
     channel: "chrome",
