@@ -2,11 +2,37 @@
 <html lang="en">
 <head>
 	<meta charset="utf-8" />
-	<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Wistellar</title>
+	<meta name="theme-color" content="#070a12" />
+	<link rel="icon" href="%sveltekit.assets%/favicon.png" sizes="64x64" />
+	<link rel="icon" href="%sveltekit.assets%/icon.svg" type="image/svg+xml" />
+	<link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
+	<link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+	<style>
+		#splash {
+			display: none;
+		}
+	</style>
+	<link rel="stylesheet" href="%sveltekit.assets%/splash.css" media="(display-mode: standalone)" />
 	%sveltekit.head%
 </head>
 <body data-sveltekit-preload-data="hover">
+	<div id="splash" aria-hidden="true" onanimationend="if (event.animationName === 'splash-out') this.remove()">
+		<div class="brand">
+			<div class="mark">
+				<div class="waves"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+				<img src="%sveltekit.assets%/splash-mark.svg" alt="" />
+				<div class="ping p1"></div>
+				<div class="ping p2"></div>
+				<div class="ping p3"></div>
+				<div class="ping p4"></div>
+				<div class="glow"></div>
+				<div class="core"></div>
+			</div>
+			<div class="name">WISTELLAR</div>
+		</div>
+	</div>
 	<div style="display: contents">%sveltekit.body%</div>
 </body>
 </html>

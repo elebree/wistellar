@@ -3,6 +3,7 @@
   import { onMount, onDestroy, untrack } from "svelte";
   import { page } from "$app/state";
   import { api, handleMapError, transformRequest } from "#lib/api.ts";
+  import { hideSplash } from "#lib/splash.ts";
 
   import mapLibre, {
     type GeoJSONSource,
@@ -298,6 +299,8 @@
 
       // The network layers are added by an effect once the style is ready, if signed in.
       styleLoaded = true;
+      // The base map has drawn for the first time, so the startup screen can go.
+      hideSplash();
     });
   }
 

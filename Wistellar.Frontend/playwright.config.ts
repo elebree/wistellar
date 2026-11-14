@@ -18,6 +18,7 @@ export default defineConfig({
     // own Chromium instead (after `pnpm exec playwright install chromium`).
     channel: "chrome",
     viewport: { width: 1280, height: 800 },
+    serviceWorkers: "block",
     trace: "retain-on-failure",
   },
   webServer: {

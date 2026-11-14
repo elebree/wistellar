@@ -35,7 +35,7 @@ are only touching front-end code.
 ## Checking and building
 
 ```bash
-pnpm run check     # svelte-check — the only static analysis this project has
+pnpm run check     # svelte-check, plus tsc over e2e/ and the service worker — the only static analysis
 pnpm run build     # production build
 ```
 
@@ -50,7 +50,11 @@ build `Wistellar.Core` directly to iterate on C# alone.
 | `src/routes/` | SvelteKit routes: the map page and the login page |
 | `src/components/` | `MapLibre.svelte` (map, layers, selection), `NetworkPanel.svelte` (details of a clicked network) and `Login.svelte` |
 | `src/lib/authService.ts` | Token storage and expiry checks against the JWT |
+| `src/service-worker/` | The service worker that lets the installed app start offline; it caches the app and the base map, never API data |
+| `src/lib/saved-view.ts` | Keeps the map view and filter across launches, for the installed app, which starts without them in its URL |
 | `static/liberty.json` | The base map style |
+| `static/manifest.webmanifest` | The web app manifest |
+| `static/splash.*`, `src/lib/splash.ts` | The installed app's startup screen (markup in `src/app.html`) |
 
 The JWT is attached to tile requests through MapLibre's `transformRequest` hook in
 `MapLibre.svelte`; tiles carry only an id and a type, and full attributes are fetched from
