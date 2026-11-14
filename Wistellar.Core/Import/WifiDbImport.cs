@@ -29,7 +29,7 @@ namespace Wistellar.Core.Import
             { "WPA-Enterprise" ,"WPA-EAP"},
             { "WPA-Entreprise" ,"WPA-EAP"},
             { "WPA-PSK" ,"WPA-PSK"},
-             { "WPA" ,"WPA-PSK"},
+            { "WPA" ,"WPA-PSK"},
             { "WPA-Personal" ,"WPA-PSK"},
             { "WPA-Personnel" ,"WPA-PSK"},
             { "WPA2" ,"WPA2-PSK"},

@@ -81,8 +81,15 @@
   const chip = "inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset break-all";
 </script>
 
-<div
-  class="w-max max-w-72 rounded-lg bg-white p-1.5 font-sans text-sm text-gray-700 shadow-lg ring-1 ring-black/5"
+<!--
+  Phones: full width across the top of the screen. The filter row (10px margin + 36px) floats over it,
+  so the top padding starts the content 10px below that row. From `sm` up: a card on the left, under the
+  filter box. The filter row's containers have z-index 2; z-1 keeps this panel beneath them and above
+  the map.
+-->
+<section
+  aria-label="Network details"
+  class="absolute inset-x-0 top-0 z-1 max-h-[60dvh] overflow-y-auto bg-white/85 p-1.5 pt-14 font-sans text-sm text-gray-700 shadow-lg ring-1 ring-black/5 sm:top-14 sm:right-auto sm:left-2.5 sm:max-h-[calc(100dvh-6rem)] sm:w-80 sm:rounded-lg sm:pt-1.5"
 >
   <div
     class={[
@@ -130,4 +137,4 @@
       {/each}
     </dl>
   {/if}
-</div>
+</section>

@@ -87,7 +87,7 @@ run = [
 description = "Manage users: mise run user -- --add-user --username test --password test --role admin"
 dir = "{{config_root}}/Wistellar.Server"
 # Enter CLI mode even without arguments; user management does not need the SPA.
-run = "dotnet run -p:BuildFrontend=false -- --manage-users"
+run = "dotnet run -p:BuildFrontend=false --"
 
 [tasks."ef:list"]
 description = "List EF Core migrations"
@@ -107,6 +107,22 @@ run = [
   "dotnet tool restore",
   "dotnet ef migrations add {{usage.name}} --project ../Wistellar.Core --startup-project ../Wistellar.Core",
 ]
+
+[tasks.publish]
+description = "Publish the server, front end included, into publish/ like the container image"
+depends = ["install"]
+run = "dotnet publish Wistellar.Server/Wistellar.Server.csproj -c Release -o publish -p:UseAppHost=false"
+
+[tasks.serve]
+description = "Run the published server on http://localhost:8080, without Vite, to try the installed app"
+depends = ["publish"]
+dir = "{{config_root}}/publish"
+# No launch profile, so no SpaProxy: the server serves the built app and its service worker itself,
+# as in production. `dev` serves the app from Vite, where the service worker caches only the base
+# map. localhost counts as secure, so the service worker runs over plain HTTP here. Same database
+# and signing key as dev:server, so the same users can sign in.
+env = { ASPNETCORE_URLS = "http://localhost:8080", Wistellar__ConnectionString = "{{config_root}}/Wistellar.Server/data/wistellar.sqlite", Wistellar__IssuerSigningKeyFilePath = "{{config_root}}/Wistellar.Server/data/issuer_signing_key.txt" }
+run = "dotnet Wistellar.Server.dll"
 
 [tasks."docker:build"]
 description = "Build the container image as wistellar"

@@ -5,7 +5,9 @@
   import Login from "../components/Login.svelte";
   import ImportFiles from "../components/ImportFiles.svelte";
   import AppMenu, { type MenuItem } from "../components/AppMenu.svelte";
+  import NetworkPanel from "../components/NetworkPanel.svelte";
   import { auth } from "#lib/auth.svelte.ts";
+  import { loadSavedFilter, loadSavedView, saveFilter, saveView } from "#lib/saved-view.ts";
   import signInIcon from "#lib/icons/sign-in.svg?raw";
   import signOutIcon from "#lib/icons/sign-out.svg?raw";
   import userIcon from "#lib/icons/user.svg?raw";
@@ -20,6 +22,7 @@
   let filter = $state<string>("type=W|E|B|G|L|C|D|N&ssid=_%&time[gt]=1d");
   let importOpen = $state(false);
   let dataVersion = $state(0);
+  let network = $state<Record<string, unknown>>();
 
   // New entries go here; `visible` decides when each one shows.
   const menuItems: MenuItem[] = [
@@ -49,10 +52,19 @@
   onMount(() => {
     auth.restore();
 
+    // A view or filter in the URL, from a link or a reload, wins. Without one, as when the
+    // installed app starts, the last ones come back.
     const searchParams = new URLSearchParams(page.url.searchParams.toString());
-    lat = parseFloat(searchParams.get("lat") ?? "21.76");
-    lon = parseFloat(searchParams.get("lon") ?? "8.53");
-    zoom = parseFloat(searchParams.get("z") ?? "1.1");
+    const savedView = loadSavedView();
+    if (["lat", "lon", "z"].some((name) => searchParams.has(name))) {
+      lat = parseFloat(searchParams.get("lat") ?? "21.76");
+      lon = parseFloat(searchParams.get("lon") ?? "8.53");
+      zoom = parseFloat(searchParams.get("z") ?? "1.1");
+    } else if (savedView) {
+      lat = savedView.lat;
+      lon = savedView.lon;
+      zoom = savedView.zoom;
+    }
 
     searchParams.delete("lat");
     searchParams.delete("lon");
@@ -60,10 +72,12 @@
     const urlFilter = decodeURIComponent(searchParams.toString());
 
     if (urlFilter != "") filter = urlFilter;
+    else filter = loadSavedFilter() ?? filter;
   });
 
   $effect(() => {
     updateQueryStringFromFilter(filter);
+    saveFilter(filter);
   });
 
   $effect(() => {
@@ -101,6 +115,7 @@
   }
 
   function onChangeView(zoom: number, lat: number, lng: number) {
+    saveView({ lat, lon: lng, zoom });
     updateQueryStringFromPosition(zoom, lat, lng);
   }
 </script>
@@ -125,9 +140,13 @@
       lng={lon}
       signedIn={auth.signedIn}
       {dataVersion}
+      bind:network
     />
   {/if}
   <div class="maplibregl-control-container">
+    {#if network}
+      <NetworkPanel properties={network} onclose={() => (network = undefined)} />
+    {/if}
     <div class=" maplibregl-ctrl-top-left">
       {#if auth.signedIn}
         <input
