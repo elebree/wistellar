@@ -20,7 +20,7 @@
       <Version>10.0.15</Version>
     </PackageReference>
     <PackageReference Include="Patternimorph" Version="0.1.0" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.3.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="11.0.1" />
   </ItemGroup>
 
   <ItemGroup>
