@@ -1,6 +1,8 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import closeIcon from "#lib/icons/x-mark.svg?raw";
+  import { networkTypeOf, typeColor } from "#lib/network-types.ts";
+  import { formatDistance, formatDuration } from "#lib/format.ts";
 
   interface Props {
     properties: Record<string, unknown>;
@@ -9,40 +11,20 @@
 
   let { properties, onclose }: Props = $props();
 
+  let type = $derived(networkTypeOf(properties.type));
+
   const headerKeys = new Set(["type", "bssid", "ssid", "cap", "lastlat", "lastlon"]);
   const labels: Record<string, string> = {
     lasttime: "Last seen",
     level: "Level",
-    loc: "Observations",
-    dist: "Range",
-    dur: "Dwell",
+    // The names of the sighting filters, rather than WiGLE's "observations", "range" and "dwell".
+    loc: "Sightings",
+    dist: "Seen across",
+    dur: "Seen over",
     vendor: "Vendor",
   };
 
   const dateLocale = "de-DE";
-
-  const durationUnits = [
-    ["d", 86400],
-    ["h", 3600],
-    ["min", 60],
-    ["s", 1],
-  ] as const;
-
-  function formatDuration(seconds: number): string {
-    let rest = Math.round(seconds);
-    const amounts = durationUnits.map(([unit, size]) => {
-      const amount = Math.floor(rest / size);
-      rest -= amount * size;
-      return { amount, unit };
-    });
-    const first = amounts.findIndex((a) => a.amount > 0);
-    if (first < 0) return "0 s";
-    return amounts
-      .slice(first, first + 2)
-      .filter((a) => a.amount > 0)
-      .map((a) => `${a.amount} ${a.unit}`)
-      .join(" ");
-  }
 
   function formatValue(key: string, value: unknown): string {
     switch (key) {
@@ -50,6 +32,8 @@
         return new Date(value as number).toLocaleString(dateLocale);
       case "dur": // dwell: seconds between the first and last observation
         return formatDuration(Number(value));
+      case "dist": // range: metres between the farthest observations
+        return formatDistance(Number(value));
       default:
         return String(value);
     }
@@ -81,26 +65,27 @@
   const chip = "inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset break-all";
 </script>
 
-<!--
-  Phones: full width across the top of the screen. The filter row (10px margin + 36px) floats over it,
-  so the top padding starts the content 10px below that row. From `sm` up: a card on the left, under the
-  filter box. The filter row's containers have z-index 2; z-1 keeps this panel beneath them and above
-  the map.
--->
 <section
   aria-label="Network details"
-  class="absolute inset-x-0 top-0 z-1 max-h-[60dvh] overflow-y-auto bg-white/85 p-1.5 pt-14 font-sans text-sm text-gray-700 shadow-lg ring-1 ring-black/5 sm:top-14 sm:right-auto sm:left-2.5 sm:max-h-[calc(100dvh-6rem)] sm:w-80 sm:rounded-lg sm:pt-1.5"
+  class="absolute inset-x-0 top-0 z-1 max-h-[60dvh] overflow-y-auto glass p-1.5 font-sans text-sm text-gray-700 shadow-lg ring-1 ring-black/5 sm:top-[calc(var(--top-controls-height,92px)+10px)] sm:right-auto sm:left-2.5 sm:max-h-[calc(100%-var(--top-controls-height,92px)-50px-var(--time-filter-height,0px))] sm:w-80 sm:rounded-lg"
 >
   <div
     class={[
-      "flex items-start gap-2 px-2.5 pt-1",
+      "flex items-start gap-2 px-2.5 pt-1 max-sm:pr-14",
       details.length > 0 ? "mb-1.5 border-b border-gray-100 pb-2.5" : "pb-1",
     ]}
   >
     <div class="flex min-w-0 flex-col gap-1.5">
-      <div class="flex flex-wrap gap-1">
+      <div class="flex flex-wrap items-center gap-1">
         {#if present(properties.type)}
-          <span class="{chip} bg-blue-50 text-blue-700 ring-blue-700/10">{properties.type}</span>
+          <!-- The same badge as the type's toggle. -->
+          {#if type}
+            <span class="type-badge" role="img" aria-label={type.label} title={type.label} style:--type-color={typeColor(type)}>
+              <Icon svg={type.icon} class="size-8" />
+            </span>
+          {:else}
+            <span class="type-badge">{properties.type}</span>
+          {/if}
         {/if}
         {#if present(properties.bssid)}
           <span class="{chip} bg-gray-50 text-gray-600 ring-gray-500/10">{properties.bssid}</span>
@@ -121,7 +106,7 @@
     </div>
     <button
       type="button"
-      class="-mt-0.5 -mr-1.5 ml-auto shrink-0 rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+      class="-mt-0.5 -mr-1.5 ml-auto shrink-0 rounded-md p-1 text-gray-400 max-sm:mt-0 max-sm:flex max-sm:p-2.5 hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
       aria-label="Close"
       onclick={onclose}
     >

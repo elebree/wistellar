@@ -1,6 +1,7 @@
 import type { Locator } from "@playwright/test";
 import { test, expect, stubToken } from "./stub-api";
-import { menuButton, openPanelAtCenter, panel, visitMap } from "./map";
+import { style } from "./stub-data";
+import { filtersButton, menuButton, openPanelAtCenter, panel, visitMap } from "./map";
 
 /** Whether the element is what a tap at its center would hit, i.e. nothing covers it. */
 const isOnTop = (locator: Locator) =>
@@ -24,7 +25,16 @@ test.describe("phone layout", () => {
     expect(Math.abs(button.x + button.width - (390 - 10)), "10px from the right edge").toBeLessThan(1);
   });
 
-  test("shows network details full width across the top, under the filter row", async ({ page }) => {
+  test("fits the funnel under the filter box", async ({ page }) => {
+    await visitMap(page, { token: stubToken() });
+    const filter = (await page.locator("#filter").boundingBox())!;
+    const funnel = (await filtersButton(page).boundingBox())!;
+    expect(funnel.x, "lines up with the filter box").toBeCloseTo(filter.x, 0);
+    expect(funnel.y - (filter.y + filter.height), "10px below the filter box").toBeCloseTo(10, 0);
+    expect(funnel.height, "as high as the filter box").toBeCloseTo(filter.height, 0);
+  });
+
+  test("shows network details full width across the top, in place of the filter row", async ({ page }) => {
     await visitMap(page, { token: stubToken() });
     await openPanelAtCenter(page);
     const box = (await panel(page).boundingBox())!;
@@ -33,14 +43,70 @@ test.describe("phone layout", () => {
     expect(box.width, "full width").toBe(390);
     await expect(panel(page), "square corners").toHaveCSS("border-radius", "0px");
 
-    const filter = page.locator("#filter");
-    const filterBox = (await filter.boundingBox())!;
-    const bssid = (await panel(page).getByText("00:00:00:00:00:01", { exact: true }).boundingBox())!;
-    expect(bssid.y, "details start below the filter row").toBeGreaterThan(filterBox.y + filterBox.height);
+    await expect(page.locator("#filter"), "no filter box while the details are open").toBeHidden();
+    await expect(filtersButton(page), "no funnel while the details are open").toBeHidden();
 
-    expect(await isOnTop(filter), "filter box drawn over the panel").toBe(true);
+    // The menu button stays, over the panel's top right corner, with the close button beside it.
+    const menu = (await menuButton(page).boundingBox())!;
+    const close = panel(page).getByRole("button", { name: "Close" });
+    const closeBox = (await close.boundingBox())!;
+    expect(closeBox.x + closeBox.width, "close button ends 10px before the menu button").toBeCloseTo(menu.x - 10, 0);
+    expect(closeBox.y, "same top as the menu button").toBeCloseTo(menu.y, 0);
+    expect(closeBox.height, "as high as the menu button").toBeCloseTo(menu.height, 0);
+    expect(await isOnTop(close), "close button not covered").toBe(true);
+
+    const bssid = (await panel(page).getByText("00:00:00:00:00:01", { exact: true }).boundingBox())!;
+    expect(bssid.y, "details start in the menu button's row").toBeLessThan(menu.y + menu.height);
+
     expect(await isOnTop(menuButton(page)), "menu button drawn over the panel").toBe(true);
     await menuButton(page).click();
     expect(await isOnTop(page.getByRole("menu")), "open menu drawn over the panel").toBe(true);
+  });
+
+  test("brings the filter row back when the details close", async ({ page }) => {
+    await visitMap(page, { token: stubToken() });
+    await openPanelAtCenter(page);
+    await expect(page.locator("#filter")).toBeHidden();
+    await panel(page).getByRole("button", { name: "Close" }).click();
+    await expect(panel(page)).toHaveCount(0);
+    await expect(page.locator("#filter")).toBeVisible();
+    await expect(filtersButton(page)).toBeVisible();
+    expect(await isOnTop(page.locator("#filter")), "filter box usable again").toBe(true);
+  });
+});
+
+test.describe("map attribution on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  // The stub style has no sources, so nothing to credit; this one has.
+  const creditedStyle = {
+    ...style,
+    sources: {
+      credits: { type: "geojson", data: { type: "FeatureCollection", features: [] }, attribution: "Stub Maps" },
+    },
+    layers: [...style.layers, { id: "credits", type: "circle", source: "credits" }],
+  };
+
+  test("stays collapsed after the user collapsed it, across launches", async ({ page }) => {
+    await page.route("**/liberty.json", (route) => route.fulfill({ json: creditedStyle }));
+    const attribution = page.locator(".maplibregl-ctrl-attrib");
+
+    await visitMap(page, { token: stubToken() });
+    await expect(attribution).toHaveClass(/maplibregl-compact-show/);
+    await expect(attribution).toContainText("Stub Maps");
+
+    await page.locator(".maplibregl-ctrl-attrib-button").click();
+    await expect(attribution).not.toHaveClass(/maplibregl-compact-show/);
+
+    await page.reload();
+    await expect(attribution).toHaveClass(/maplibregl-compact/);
+    await expect(attribution).toContainText("Stub Maps");
+    await expect(attribution).not.toHaveClass(/maplibregl-compact-show/);
+
+    // Expanding it again is remembered too.
+    await page.locator(".maplibregl-ctrl-attrib-button").click();
+    await expect(attribution).toHaveClass(/maplibregl-compact-show/);
+    await page.reload();
+    await expect(attribution).toHaveClass(/maplibregl-compact-show/);
   });
 });
