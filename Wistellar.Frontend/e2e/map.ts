@@ -5,6 +5,16 @@ export const menuButton = (page: Page) => page.locator(".app-menu > button");
 export const dialog = (page: Page) => page.locator("dialog");
 export const panel = (page: Page) => page.getByRole("region", { name: "Network details" });
 export const canvas = (page: Page) => page.locator(".maplibregl-canvas");
+export const filtersButton = (page: Page) => page.getByRole("button", { name: "Filters", exact: true });
+export const filtersPane = (page: Page) => page.getByRole("dialog", { name: "Filters" });
+/** The type toggles, in the filters pane. */
+export const typeToggles = (page: Page) => filtersPane(page).getByRole("group", { name: "Network types" });
+
+/** Opens the filters pane with the funnel button. */
+export async function openFilters(page: Page) {
+  await filtersButton(page).click();
+  await expect(filtersPane(page)).toBeVisible();
+}
 
 /** Compare view parameters numerically, allowing the app to change their decimal formatting. */
 export function mapQuery(page: Page) {
@@ -16,14 +26,19 @@ export function mapQuery(page: Page) {
   }));
 }
 
-/** Opens the map centered on a stub network, optionally with a stored session. */
+/** Opens the map centered on a stub network, optionally with a stored session and a filter in the link. */
 export async function visitMap(
   page: Page,
-  { at = "00:00:00:00:00:01", zoom = 14, token }: { at?: string; zoom?: number; token?: string } = {},
+  {
+    at = "00:00:00:00:00:01",
+    zoom = 14,
+    token,
+    filter,
+  }: { at?: string; zoom?: number; token?: string; filter?: string } = {},
 ) {
   if (token) await page.addInitScript((t) => localStorage.setItem("access_token", t), token);
   const [lon, lat] = positionOf(at);
-  await page.goto(`/?z=${zoom}&lat=${lat}&lon=${lon}`);
+  await page.goto(`/?z=${zoom}&lat=${lat}&lon=${lon}${filter ? `&${filter}` : ""}`);
   await expect(canvas(page)).toBeVisible();
 }
 
@@ -60,6 +75,16 @@ export async function waitForNetworkAtCenter(page: Page) {
     await page.mouse.move(x + 2, y + 2);
     await page.mouse.move(x, y);
     expect(await canvas(page).evaluate((el) => el.style.cursor)).toBe("pointer");
+  }).toPass();
+}
+
+/** Waits until no network is drawn under the map's center, which shows as no pointer cursor there. */
+export async function waitForNoNetworkAtCenter(page: Page) {
+  const { x, y } = await canvasCenter(page);
+  await expect(async () => {
+    await page.mouse.move(x + 2, y + 2);
+    await page.mouse.move(x, y);
+    expect(await canvas(page).evaluate((el) => el.style.cursor)).toBe("");
   }).toPass();
 }
 

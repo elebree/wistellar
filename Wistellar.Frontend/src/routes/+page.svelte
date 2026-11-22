@@ -6,8 +6,11 @@
   import ImportFiles from "../components/ImportFiles.svelte";
   import AppMenu, { type MenuItem } from "../components/AppMenu.svelte";
   import NetworkPanel from "../components/NetworkPanel.svelte";
+  import TimeFilter from "../components/TimeFilter.svelte";
+  import Filters from "../components/Filters.svelte";
   import { auth } from "#lib/auth.svelte.ts";
   import { loadSavedFilter, loadSavedView, saveFilter, saveView } from "#lib/saved-view.ts";
+  import { filterParams } from "#lib/filter-query.ts";
   import signInIcon from "#lib/icons/sign-in.svg?raw";
   import signOutIcon from "#lib/icons/sign-out.svg?raw";
   import userIcon from "#lib/icons/user.svg?raw";
@@ -19,10 +22,14 @@
   let lat = $state<number>(21.76);
   let lon = $state<number>(8.53);
   let zoom = $state<number>(1.1);
-  let filter = $state<string>("type=W|E|B|G|L|C|D|N&ssid=_%&time[gt]=1d");
+  // Types in the toggles' order, so switching one off and on again gives back the same filter.
+  let filter = $state<string>("type=W|B|E|G|C|D|L|N&ssid=_%&time[gt]=1d");
   let importOpen = $state(false);
   let dataVersion = $state(0);
   let network = $state<Record<string, unknown>>();
+  let timeFilterHeight = $state(0);
+  // The filter box and the rows under it, for the details panel to start below them.
+  let topControlsHeight = $state(0);
 
   // New entries go here; `visible` decides when each one shows.
   const menuItems: MenuItem[] = [
@@ -69,7 +76,8 @@
     searchParams.delete("lat");
     searchParams.delete("lon");
     searchParams.delete("z");
-    const urlFilter = decodeURIComponent(searchParams.toString());
+    // Decoded, `+` included: the filter's values are plain text.
+    const urlFilter = Array.from(searchParams, ([name, value]) => `${name}=${value}`).join("&");
 
     if (urlFilter != "") filter = urlFilter;
     else filter = loadSavedFilter() ?? filter;
@@ -87,12 +95,15 @@
   function updateQueryStringFromFilter(filter: string) {
     if (typeof window === "undefined") return; // Skip on server
 
-    const filterParams = new URLSearchParams("?" + filter);
-
-    const params = new URLSearchParams(window.location.search);
-    filterParams
-      .keys()
-      .forEach((k) => params.set(k, filterParams.get(k) ?? ""));
+    // The view stays, and the filter replaces everything else, so a parameter taken out of the
+    // filter (the slider drops `time[lt]` for "Last 24 hours") leaves the URL as well.
+    const current = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams();
+    for (const name of ["z", "lat", "lon"]) {
+      const value = current.get(name);
+      if (value !== null) params.set(name, value);
+    }
+    for (const [name, value] of filterParams(filter)) params.set(name, value);
 
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     goto(newUrl, { replaceState: false });
@@ -131,50 +142,65 @@
 {/snippet}
 
 <div class="app">
-  {#if lat && lon}
-    <MapLibre
-      {filter}
-      {onChangeView}
-      {zoom}
-      {lat}
-      lng={lon}
-      signedIn={auth.signedIn}
-      {dataVersion}
-      bind:network
-    />
-  {/if}
-  <div class="maplibregl-control-container">
-    {#if network}
-      <NetworkPanel properties={network} onclose={() => (network = undefined)} />
-    {/if}
-    <div class=" maplibregl-ctrl-top-left">
-      {#if auth.signedIn}
-        <input
-          type="text"
-          name="filter"
-          id="filter"
-          class="filter-box maplibregl-ctrl block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6"
-          placeholder="Filter query"
-          value={filter}
-          onkeydown={(e) => {
-            if (e.key === "Enter") {
-              const el = e?.target as any;
-              filter = el.value;
-              el.blur();
-            }
-          }}
-          onblur={(e) => {
-            filter = (e?.target as any).value;
-          }}
-        />
-      {/if}
-    </div>
-    <div class="maplibregl-ctrl-top-right">
-      <AppMenu
-        items={menuItems}
-        header={auth.signedIn ? signedInAs : undefined}
+  <div
+    class="map-area"
+    style:--time-filter-height="{auth.signedIn ? timeFilterHeight : 0}px"
+    style:--top-controls-height="{topControlsHeight}px"
+  >
+    {#if lat && lon}
+      <MapLibre
+        {filter}
+        {onChangeView}
+        {zoom}
+        {lat}
+        lng={lon}
+        signedIn={auth.signedIn}
+        {dataVersion}
+        bind:network
       />
+    {/if}
+    <div class="maplibregl-control-container">
+      {#if network}
+        <NetworkPanel properties={network} onclose={() => (network = undefined)} />
+      {/if}
+      <div
+        class={["top-controls maplibregl-ctrl-top-left", network && "max-sm:invisible"]}
+        bind:clientHeight={topControlsHeight}
+      >
+        {#if auth.signedIn}
+          <input
+            type="text"
+            name="filter"
+            id="filter"
+            class="filter-box maplibregl-ctrl block w-full rounded-md bg-white px-3 py-1.5 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6"
+            placeholder="Filter query"
+            value={filter}
+            onkeydown={(e) => {
+              if (e.key === "Enter") {
+                const el = e?.target as any;
+                filter = el.value;
+                el.blur();
+              }
+            }}
+            onblur={(e) => {
+              filter = (e?.target as any).value;
+            }}
+          />
+          <div class="maplibregl-ctrl relative flex max-w-[calc(100vw-20px)] flex-wrap items-start gap-2">
+            <Filters bind:filter />
+          </div>
+        {/if}
+      </div>
+      <div class="maplibregl-ctrl-top-right">
+        <AppMenu
+          items={menuItems}
+          header={auth.signedIn ? signedInAs : undefined}
+        />
+      </div>
     </div>
+    {#if auth.signedIn}
+      <TimeFilter bind:filter bind:height={timeFilterHeight} />
+    {/if}
   </div>
   <Login />
   {#if auth.signedIn && importOpen}
@@ -190,6 +216,22 @@
     border-radius: 50vh;
     /* 10px margin on each side, plus the 36px menu button and a 10px gap before it. */
     width: calc(100vw - 66px);
+  }
+
+  /* Holds the floated controls, so that its height is theirs. */
+  .top-controls {
+    display: flow-root;
+  }
+
+  .map-area {
+    position: relative;
+    height: 100dvh;
+  }
+
+  /* The time range bar lies over the bottom of the map; MapLibre's corner controls move up. */
+  .map-area :global(.maplibregl-ctrl-bottom-left),
+  .map-area :global(.maplibregl-ctrl-bottom-right) {
+    bottom: var(--time-filter-height, 0px);
   }
 
   :global(body) {

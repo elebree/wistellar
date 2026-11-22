@@ -39,14 +39,54 @@ function layerOf(type: string) {
   return "BEF".includes(type) ? "bluetooth" : "cell";
 }
 
-/** A vector tile as /geo/tiles builds it: one layer per kind, features carry only BSSID and type. */
-function vectorTile(z: number, x: number, y: number): Buffer {
+/** A dwell bound in seconds: plain seconds, or one amount with a unit (m h d; M and y approximated). */
+function seconds(text: string): number {
+  const [, amount, unit] = text.match(/^(\d+)([mhdMy]?)$/) ?? [];
+  const size = { "": 1, m: 60, h: 3600, d: 86400, M: 30 * 86400, y: 365 * 86400 }[unit ?? ""] ?? NaN;
+  return Number(amount) * size;
+}
+
+/** Whether a stub network passes the filter's bounds on range, dwell and observations, as on the server. */
+function withinBounds(properties: Record<string, number>, filter: URLSearchParams): boolean {
+  const bounds = [
+    ["range", properties.dist, Number],
+    ["dwell", properties.dur, seconds],
+    ["locations", properties.loc, Number],
+  ] as const;
+  return bounds.every(([name, value, read]) => {
+    const gt = filter.get(`${name}[gt]`);
+    const lt = filter.get(`${name}[lt]`);
+    return (gt === null || value > read(gt)) && (lt === null || value < read(lt));
+  });
+}
+
+/** SQLite's LIKE: `%` any text, `_` one character, case-insensitive. */
+const likePattern = (pattern: string) =>
+  new RegExp(`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".")}$`, "is");
+
+/**
+ * A vector tile as /geo/tiles builds it: one layer per kind, features carry only BSSID and type.
+ */
+function vectorTile(z: number, x: number, y: number, filter: URLSearchParams): Buffer {
+  const types = filter.get("type");
+  const shown = types ? types.split("|") : undefined;
+  const patterns = ["ssid", "bssid"].flatMap((name) => {
+    const value = filter.get(name);
+    return value ? [{ name, alternatives: value.split("|").map(likePattern) }] : [];
+  });
   const layers: Parameters<typeof fromGeojsonVt>[0] = {};
   for (const name of ["wifi", "bluetooth", "cell"]) {
     // No feature id: the server's ids are BSSIDs, which a vector tile can't hold, so it sends them
     // as a property instead.
     const features = networks.features
       .filter((f) => layerOf(f.properties?.type) === name)
+      .filter((f) => !shown || shown.includes(f.properties?.type))
+      .filter((f) =>
+        patterns.every(({ name, alternatives }) =>
+          alternatives.some((pattern) => pattern.test(String(f.properties?.[name] ?? ""))),
+        ),
+      )
+      .filter((f) => withinBounds(f.properties as Record<string, number>, filter))
       .map((f) => ({
         type: "Feature" as const,
         geometry: f.geometry,
@@ -90,9 +130,10 @@ export class StubApi {
     });
 
     await page.route(isTile, (route) => {
-      const { pathname } = new URL(route.request().url());
+      const { pathname, searchParams } = new URL(route.request().url());
       const [z, x, y] = pathname.match(/(\d+)\/(\d+)\/(\d+)\.pbf$/)!.slice(1).map(Number);
-      return route.fulfill({ contentType: "application/vnd.mapbox-vector-tile", body: vectorTile(z, x, y) });
+      const body = vectorTile(z, x, y, searchParams);
+      return route.fulfill({ contentType: "application/vnd.mapbox-vector-tile", body });
     });
 
     await page.route(

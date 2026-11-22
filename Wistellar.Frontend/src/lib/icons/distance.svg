@@ -1,0 +1,4 @@
+<!-- Drawn in the style of Heroicons: a measured distance, |<->| -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 7.5v9m16.5-9v9M6.75 12h10.5M6.75 12 9 9.75M6.75 12 9 14.25M17.25 12 15 9.75M17.25 12 15 14.25" />
+</svg>

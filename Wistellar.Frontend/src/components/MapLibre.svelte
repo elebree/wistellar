@@ -4,17 +4,24 @@
   import { page } from "$app/state";
   import { api, handleMapError, transformRequest } from "#lib/api.ts";
   import { hideSplash } from "#lib/splash.ts";
+  import { networkLayers } from "#lib/network-types.ts";
+  import { toQueryString } from "#lib/filter-query.ts";
+  import { attributionCookie, readCookie, writeCookie } from "#lib/ui-cookies.ts";
 
-  import mapLibre, {
+  import {
+    Map,
+    NavigationControl,
+    GeolocateControl,
+    setWorkerUrl,
     type GeoJSONSource,
     type MapMouseEvent,
     type MapGeoJSONFeature,
     type Subscription,
-    type VectorTileSource,
   } from "maplibre-gl";
+  import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
   import type { Feature, FeatureCollection } from "geojson";
 
-  const { Map, NavigationControl, GeolocateControl } = mapLibre;
+  setWorkerUrl(workerUrl);
 
   interface Props {
     filter: string;
@@ -44,13 +51,28 @@
     network = $bindable(),
   }: Props = $props();
 
-  let map: mapLibre.Map;
+  let map: Map;
   let mapContainer: HTMLElement;
   let styleLoaded = $state(false);
   let selection = $state<string>();
   let networkSubscriptions: Subscription[] = [];
 
-  const networksSource = "networks";
+  /*
+   * Every filter, and every reload after an import, gets a vector source of its own: `networks-1`,
+   * `networks-2`, … MapLibre's `setTiles` on one source would refetch each tile without cancelling
+   * the request still running for the old URL, and draw that one's response too when it arrives,
+   * so quick filter changes piled up requests. Removing a source does cancel the requests of its
+   * tiles that are still loading.
+   *
+   * The newest source that has finished loading stays on screen until the next one has, so the
+   * networks don't blink out on every change. Any other older source goes at once.
+   */
+  let networkGeneration = 0;
+  /** Oldest first; the last one has the current filter. At most the shown one and the current one. */
+  let networkSources: string[] = [];
+  let shownNetworkSource: string | undefined;
+  let pointerOverNetwork = false;
+
   const geojsonSource = "geojson";
   // The API is served from the same origin as the SPA.
   const apiHost = page.url.protocol + "//" + page.url.host;
@@ -61,12 +83,10 @@
 
   let locationsMinLevel = -100;
 
-  const layers = [
-    ["bluetooth", "dodgerblue"],
-    ["wifi", "tomato"],
-    ["cell", "darkolivegreen"],
-  ] as const;
-  const networkLayerIds = layers.map(([layer]) => `networks-${layer}`);
+  // Drawn bottom to top: bluetooth, wifi, cell.
+  const layerNames = ["bluetooth", "wifi", "cell"] as const;
+  const layerIdsOf = (source: string) => layerNames.map((layer) => `${source}-${layer}`);
+  const networkLayerIds = () => networkSources.flatMap(layerIdsOf);
 
   $effect(() => changeScale(zoom, lat, lng));
   function changeScale(zoom: number, lat: number, lng: number) {
@@ -77,31 +97,29 @@
   }
 
   // Reactive updates
-  $effect(() => updateFilter(filter));
   $effect(() => {
     updateSelection(selection);
   });
   $effect(() => {
     if (!styleLoaded) return;
-    if (signedIn) addNetworkLayers();
-    else removeNetworkLayers();
+    if (signedIn) untrack(startNetworks);
+    else untrack(stopNetworks);
   });
   $effect(() => {
-    if (!styleLoaded || !signedIn || dataVersion === 0) return;
+    const current = filter;
+    untrack(() => {
+      selection = undefined;
+      if (networkSources.length > 0) loadNetworks(current);
+    });
+  });
+  $effect(() => {
+    if (dataVersion === 0) return;
     untrack(() => {
       network = undefined;
       selection = undefined;
-      map.refreshTiles(networksSource);
+      if (networkSources.length > 0) loadNetworks(filter);
     });
   });
-
-  function updateFilter(filter: string) {
-    selection = undefined;
-    const networkSource = map?.getSource(networksSource) as
-      | VectorTileSource
-      | undefined;
-    networkSource?.setTiles([`${networkTilesUrl}?${filter}`]);
-  }
 
   async function updateSelection(bssid: string | undefined) {
     const source = map?.getSource(geojsonSource) as GeoJSONSource | undefined;
@@ -157,55 +175,89 @@
     return res.data;
   }
 
-  function addNetworkLayers() {
-    if (map.getSource(networksSource)) return;
+  function startNetworks() {
+    if (networkSources.length > 0) return;
 
-    map.addSource(networksSource, {
+    networkSubscriptions = [
+      map.on("click", onMapClick),
+      map.on("mousemove", onMapMouseMove),
+      map.on("sourcedata", (e) => {
+        if (e.sourceId === networkSources.at(-1)) settleNetworks();
+      }),
+      // A failed tile fires no `sourcedata`; the source still counts as loaded then.
+      map.on("idle", settleNetworks),
+    ];
+    loadNetworks(filter);
+  }
+
+  function stopNetworks() {
+    for (const subscription of networkSubscriptions) subscription.unsubscribe();
+    networkSubscriptions = [];
+
+    for (const source of networkSources) removeNetworkSource(source);
+
+    pointerOverNetwork = false;
+    map.getCanvas().style.cursor = "";
+    network = undefined;
+    selection = undefined;
+  }
+
+  /** Loads the networks for `filter` into a new source, and drops older ones that are still loading. */
+  function loadNetworks(filter: string) {
+    const source = `networks-${++networkGeneration}`;
+    map.addSource(source, {
       type: "vector",
       maxzoom: 14,
-      tiles: [`${networkTilesUrl}?${untrack(() => filter)}`],
+      tiles: [`${networkTilesUrl}?${toQueryString(filter)}`],
     });
 
-    for (const [layer, color] of layers) {
-      // Below the selection layer, so a selected network's observations stay on top.
+    for (const layer of layerNames) {
+      // Below the selection layer, so a selected network's observations stay on top. That also
+      // puts them above the older sources' layers.
       map.addLayer(
         {
-          id: `networks-${layer}`,
+          id: `${source}-${layer}`,
           type: "circle",
-          source: networksSource,
+          source,
           "source-layer": layer,
           paint: {
             "circle-radius": 4,
-            "circle-color": color,
+            "circle-color": networkLayers[layer],
           },
         },
         geojsonSource,
       );
     }
 
-    networkSubscriptions = [
-      map.on("click", onMapClick),
-      map.on("mouseenter", networkLayerIds, () => {
-        map.getCanvas().style.cursor = "pointer";
-      }),
-      map.on("mouseleave", networkLayerIds, () => {
-        map.getCanvas().style.cursor = "";
-      }),
-    ];
+    for (const old of networkSources) {
+      if (old !== shownNetworkSource) removeNetworkSource(old);
+    }
+    networkSources.push(source);
   }
 
-  function removeNetworkLayers() {
-    for (const subscription of networkSubscriptions) subscription.unsubscribe();
-    networkSubscriptions = [];
+  /** Once the current source has loaded, it is the one shown, and the older one can go. */
+  function settleNetworks() {
+    const current = networkSources.at(-1);
+    if (!current || current === shownNetworkSource || !map.isSourceLoaded(current)) return;
+    shownNetworkSource = current;
+    for (const old of networkSources.slice(0, -1)) removeNetworkSource(old);
+  }
 
-    for (const id of networkLayerIds) {
+  function removeNetworkSource(source: string) {
+    for (const id of layerIdsOf(source)) {
       if (map.getLayer(id)) map.removeLayer(id);
     }
-    if (map.getSource(networksSource)) map.removeSource(networksSource);
+    if (map.getSource(source)) map.removeSource(source);
+    networkSources = networkSources.filter((s) => s !== source);
+    if (shownNetworkSource === source) shownNetworkSource = undefined;
+  }
 
-    map.getCanvas().style.cursor = "";
-    network = undefined;
-    selection = undefined;
+  /** A pointer cursor over a network. Layers come and go with each filter, so this queries them all. */
+  function onMapMouseMove(e: MapMouseEvent) {
+    const over = map.queryRenderedFeatures(e.point, { layers: networkLayerIds() }).length > 0;
+    if (over === pointerOverNetwork) return;
+    pointerOverNetwork = over;
+    map.getCanvas().style.cursor = over ? "pointer" : "";
   }
 
   /**
@@ -213,7 +265,7 @@
    * layers overlap, and a click anywhere else closes the details.
    */
   function onMapClick(e: MapMouseEvent) {
-    const [feature] = map.queryRenderedFeatures(e.point, { layers: networkLayerIds });
+    const [feature] = map.queryRenderedFeatures(e.point, { layers: networkLayerIds() });
     if (feature) selectNetwork(feature);
     else network = undefined;
   }
@@ -237,6 +289,30 @@
     network = info?.properties ?? { bssid: id };
   }
 
+  function keepAttributionCollapsed(container: HTMLElement) {
+    const attribution = container.querySelector<HTMLElement>(".maplibregl-ctrl-attrib");
+    if (!attribution) return;
+    const shown = "maplibregl-compact-show";
+    let hidden = readCookie(attributionCookie) === "hidden";
+    const collapse = () => {
+      if (hidden && attribution.classList.contains(shown)) attribution.classList.remove(shown);
+    };
+    // Captured before MapLibre's listener on the button toggles the class: the observer runs in
+    // between, so it has to know the user's choice by then.
+    attribution.addEventListener(
+      "click",
+      (event) => {
+        const button = (event.target as Element).closest(".maplibregl-ctrl-attrib-button");
+        if (!button || !attribution.classList.contains("maplibregl-compact")) return;
+        hidden = attribution.classList.contains(shown);
+        writeCookie(attributionCookie, hidden ? "hidden" : "shown");
+      },
+      { capture: true },
+    );
+    new MutationObserver(collapse).observe(attribution, { attributeFilter: ["class"] });
+    collapse();
+  }
+
   function setupMap() {
     map = new Map({
       style: mapStyle,
@@ -249,6 +325,7 @@
     map.on("error", (ev) => {
       if (!handleMapError(ev)) console.error(ev);
     });
+    keepAttributionCollapsed(map.getContainer());
     const onViewChangedEvent = () => {
       const zoom = map.getZoom();
       const center = map.getCenter();
@@ -319,7 +396,7 @@
   .map-wrap {
     position: relative;
     width: 100%;
-    height: 100vh;
+    height: 100%;
   }
 
   .map {
@@ -331,7 +408,8 @@
   .watermark {
     position: absolute;
     left: 10px;
-    bottom: 10px;
+    /* Above the time range bar, which the page lays over the bottom of the map. */
+    bottom: calc(10px + var(--time-filter-height, 0px));
     z-index: 999;
   }
 

@@ -6,6 +6,9 @@ import {
   menuButton,
   openPanelAtCenter,
   panel,
+  filtersButton,
+  openFilters,
+  typeToggles,
   visitMap,
   waitForNetworkAtCenter,
   zoomOut,
@@ -27,20 +30,36 @@ test.describe("networks, signed in", () => {
     await expect(panel(page)).toHaveCount(1);
     await expect(panel(page).getByText("00:00:00:00:00:01", { exact: true })).toBeVisible();
     await expect(panel(page).getByText("Stub WiFi One", { exact: true })).toBeVisible();
+    // The type as the same badge as its toggle.
+    const type = panel(page).getByRole("img", { name: "WiFi", exact: true });
+    await expect(type).toHaveClass(/type-badge/);
+    await expect(type).toHaveAttribute("style", /--type-color: tomato/);
+    await openFilters(page);
+    const toggleTint = await typeToggles(page)
+      .getByRole("button", { name: "WiFi", exact: true })
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    await expect(type, "same tint as the WiFi toggle").toHaveCSS("background-color", toggleTint);
+    const box = (await type.boundingBox())!;
+    expect([box.width, box.height], "the toggle's square").toEqual([32, 32]);
     await expect(panel(page).locator("span.bg-green-50")).toHaveText(["WPA2-PSK-CCMP", "ESS"]);
     await expect(detail(page, "Last seen")).toHaveText(/^\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}:\d{2}$/);
-    await expect(detail(page, "Dwell")).toHaveText("1 h 2 min");
-    await expect(detail(page, "Range")).toHaveText("0");
+    await expect(detail(page, "Seen over")).toHaveText("1 h 2 min");
+    await expect(detail(page, "Seen across")).toHaveText("0 m");
+    await expect(detail(page, "Sightings")).toHaveText("3");
     await expect(detail(page, "Vendor")).toHaveText("Stub Vendor");
   });
 
-  test("shows the details on the left under the filter box, not at the clicked point", async ({ page }) => {
+  test("shows the details on the left under the funnel's row, not at the clicked point", async ({ page }) => {
     await visitMap(page, { token });
     await openPanelAtCenter(page);
+    // Only phones give the filter row's place to the details.
+    await expect(page.locator("#filter")).toBeVisible();
+    await expect(filtersButton(page)).toBeVisible();
     const filter = (await page.locator("#filter").boundingBox())!;
+    const funnel = (await filtersButton(page).boundingBox())!;
     const box = (await panel(page).boundingBox())!;
     expect(Math.abs(box.x - filter.x), "left edge lines up with the filter box").toBeLessThan(1);
-    expect(box.y - (filter.y + filter.height), "10px below the filter box").toBeCloseTo(10, 0);
+    expect(box.y - (funnel.y + funnel.height), "10px below the funnel").toBeCloseTo(10, 0);
     expect(box.x + box.width, "ends left of the clicked point at the center").toBeLessThan(640);
   });
 
