@@ -22,8 +22,10 @@ The build is driven entirely by environment variables.
 | --- | --- | --- | --- |
 | `SERVER_URL` | **yes** | — | Base URL of your Wistellar server, e.g. `https://wistellar.example.com`. Replaces `https://wigle.net` throughout the app. |
 | `API_HOST` | no | derived from `SERVER_URL` | API hostname, without the scheme. Replaces `api.wigle.net`. Set this only if your API lives on a different host from the web interface. |
-| `MAPS_API_KEY` | no | `undefined` | Google Maps API key, used by the app's built-in map. Leave unset unless you need that map to work. |
-| `GIT_TAG` | no | `foss-2.104` | Tag or branch of the upstream repository to build. See [Building a different version](#building-a-different-version). |
+| `GIT_TAG` | no | `foss-2.111` | Tag or branch of the upstream repository to build. See [Building a different version](#building-a-different-version). |
+| `FOSS_MAP_STYLE_URL` | no | `https://tiles.openfreemap.org/styles/` | Preset for the app's *Map vector tile server style URL base* setting. The map loads its style from this value followed by `FOSS_MAP_KEY`; the default is OpenFreeMap, the same base map as Wistellar's web UI. A value saved in the app's settings wins. |
+| `FOSS_MAP_KEY` | no | `liberty` | Preset for the app's *Map vector base key* setting. |
+| `MAPS_API_KEY` | no | `undefined` | Google Maps API key. Only revisions outside the `foss-*` line, such as upstream `main`, use Google Maps; `foss-*` builds ignore it. |
 
 ## Build
 
@@ -66,18 +68,40 @@ source and ask you to confirm the install.
 Log in with a user created through Wistellar's
 [user-management CLI](../../README.md#user-management) — see below for why.
 
+### Replacing an earlier build
+
+A new build cannot be installed over an earlier one. Each `docker compose run --rm` starts a fresh
+container that signs the APK with a newly generated debug key, and Android only updates an app from
+an APK signed with the same key. Remove the old build first:
+
+1. Upload everything the app has collected. Uninstalling deletes the app's local database.
+2. Uninstall the old build. Builds of `foss-2.107` and later use the package name
+   `net.wigle.wigleandroid`; earlier `foss-*` builds use `net.wigle.wigleandroid.foss`:
+
+   ```bash
+   adb uninstall net.wigle.wigleandroid.foss   # for example, a foss-2.104 build
+   ```
+
+3. Install the new APK as above.
+
+A build from here cannot be installed next to the WiGLE app from Google Play either, so uninstall
+that one too.
+
 ## Building a different version
 
 Upstream publishes two families of tags: `foss-*` builds and plain numeric ones. Pick one with
 `GIT_TAG`:
 
 ```bash
-export GIT_TAG="foss-2.108"
+export GIT_TAG="foss-2.104"
 ```
 
 The build script patches whichever mapping class the chosen revision uses — the class was renamed
 `MappingFragment` → `AbstractMappingFragment` in the `foss-*` line — and fails with a clear message if
 it finds neither. If the tag does not exist, it falls back to the upstream default branch.
+
+The package name depends on the tag: `foss-2.107` and later build `net.wigle.wigleandroid`, the same
+name as the WiGLE app on Google Play; earlier `foss-*` tags build `net.wigle.wigleandroid.foss`.
 
 > **The upstream clone is cached in `./source` and reused.** Changing `GIT_TAG` on a later run has no
 > effect until you delete that directory:
@@ -86,15 +110,17 @@ it finds neither. If the tag does not exist, it falls back to the upstream defau
 > rm -rf ./source
 > ```
 >
-> Changing `SERVER_URL` alone does not require this — the patching step re-runs every time.
+> Changing `SERVER_URL` or the `FOSS_MAP_*` variables alone does not require this — the patching
+> step re-runs every time.
 
 ## Limitations
 
 - **In-app registration does not work.** The app's sign-up screen posts to an endpoint Wistellar does
   not implement. Create accounts with the
   [user-management CLI](../../README.md#user-management) instead.
-- **The app's built-in map stays empty.** It requests tiles in a format Wistellar does not serve. Use
-  Wistellar's own web map to browse what you have collected.
+- **The map's *Show Discovered Networks* overlay stays empty.** It requests tiles from `/clientTile`,
+  which Wistellar does not serve. The base map and the networks the phone is collecting still show;
+  use Wistellar's own web map to browse everything you have uploaded.
 
 Uploading observations — the reason to build this app — is unaffected by both.
 

@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Configuration
 GIT_REPO="https://github.com/wiglenet/wigle-wifi-wardriving.git"
-GIT_TAG=${GIT_TAG:-foss-2.104}
+GIT_TAG=${GIT_TAG:-foss-2.111}
 SOURCE_DIR="/app/source"
 OUTPUT_DIR="/app/source/wiglewifiwardriving/build/outputs/apk/debug"
 
@@ -26,6 +26,17 @@ if [ -z "${API_HOST:-}" ]; then
     API_HOST=$(echo "$SERVER_URL" | sed 's|https\?://||;s|/$||')
     echo "⚠️ API_HOST not defined. Using SERVER_URL as API_HOST: $API_HOST"
 fi
+
+# Default style for the app's map: OpenFreeMap's Liberty, the same base map as Wistellar's web UI.
+# The app joins the two values into the style URL.
+FOSS_MAP_STYLE_URL="${FOSS_MAP_STYLE_URL:-https://tiles.openfreemap.org/styles/}"
+FOSS_MAP_KEY="${FOSS_MAP_KEY:-liberty}"
+case "${FOSS_MAP_STYLE_URL}${FOSS_MAP_KEY}" in
+    *\"*|*\\*)
+        echo "❌ ERROR: FOSS_MAP_STYLE_URL and FOSS_MAP_KEY must not contain quotes or backslashes. Exiting..."
+        exit 1
+        ;;
+esac
 
 # Check if source directory exists
 if [ ! -d "$SOURCE_DIR/.git" ]; then
@@ -75,6 +86,25 @@ done
 if [ "$patched_fragment" -eq 0 ]; then
     echo "❌ ERROR: no mapping fragment found to patch in ${GIT_TAG}. Exiting..."
     exit 1
+fi
+
+# Preset the map style. Every place that reads the two FOSS map settings passes an empty default,
+# and an empty key makes the app fall back to MapLibre's demo tiles; replace those defaults.
+# A value saved in the app's settings still wins. The pattern matches any default, so a later run
+# with different values re-patches the cached source.
+map_style_read='(PREF_FOSS_MAPS_VECTOR_TILE_STYLE, *)(null|"[^"]*")\)'
+map_key_read='(PREF_FOSS_MAPS_VECTOR_TILE_KEY, *)(null|"[^"]*")\)'
+mapfile -t map_files < <(grep -rlE "${map_style_read}|${map_key_read}" wiglewifiwardriving/src/main/java)
+if [ "${#map_files[@]}" -gt 0 ]; then
+    style_url=$(printf '%s' "$FOSS_MAP_STYLE_URL" | sed 's/[#&]/\\&/g')
+    style_key=$(printf '%s' "$FOSS_MAP_KEY" | sed 's/[#&]/\\&/g')
+    sed -Ei \
+        -e "s#${map_style_read}#\\1\"${style_url}\")#g" \
+        -e "s#${map_key_read}#\\1\"${style_key}\")#g" \
+        "${map_files[@]}"
+    echo "✅ Map style preset to ${FOSS_MAP_STYLE_URL}${FOSS_MAP_KEY} in ${#map_files[@]} files."
+else
+    echo "⚠️ No FOSS map settings found in ${GIT_TAG}; the map style is not preset."
 fi
 
 # Generate local.properties

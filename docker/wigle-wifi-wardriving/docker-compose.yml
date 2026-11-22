@@ -13,7 +13,9 @@ services:
       - MAPS_API_KEY=${MAPS_API_KEY} # Pass the API key at runtime
       - API_HOST=${API_HOST} # Pass the API domain (original value is api.wigle.net)
       - SERVER_URL=${SERVER_URL} # Pass the server base URL (original value https://wigle.net)
-      - GIT_TAG=${GIT_TAG:-foss-2.104} # Git tag/branch of wiglenet/wigle-wifi-wardriving to clone
+      - GIT_TAG=${GIT_TAG:-foss-2.111} # Git tag/branch of wiglenet/wigle-wifi-wardriving to clone
+      - FOSS_MAP_STYLE_URL=${FOSS_MAP_STYLE_URL} # Map style URL base (default https://tiles.openfreemap.org/styles/)
+      - FOSS_MAP_KEY=${FOSS_MAP_KEY} # Map style key appended to the base (default liberty)
     stdin_open: true
     tty: true
     command: ["bash", "-c", "cd /app && chmod +x build-patched.sh && ./build-patched.sh"]
