@@ -1,10 +1,9 @@
 import type { Page } from "@playwright/test";
 import { test, expect, positionOf, stubToken, type StubApi } from "./stub-api";
-import { canvas, visitMap } from "./map";
+import { canvas, enterFilter, filterBox, linkFilter, openFilters, visitMap } from "./map";
 
 // The time range bar under the map reads and writes the filter's `time[gt]` and `time[lt]`.
 
-const filterBox = (page: Page) => page.locator("#filter");
 const timeline = (page: Page) => page.getByRole("group", { name: "Timeline" });
 const startHandle = (page: Page) => page.getByRole("slider", { name: "Start", exact: true });
 const endHandle = (page: Page) => page.getByRole("slider", { name: "End", exact: true });
@@ -35,11 +34,10 @@ test.describe("time range", () => {
     await expect(endHandle(page)).toHaveAttribute("aria-valuenow", String(Date.parse(april.to)));
   });
 
-  test("follows a range typed into the filter box", async ({ page }) => {
+  test("follows a range typed into the query field", async ({ page }) => {
     await visitMap(page, { token: stubToken() });
 
-    await filterBox(page).fill(`type=W&time[gt]=${april.from}&time[lt]=${april.to}`);
-    await filterBox(page).press("Enter");
+    await enterFilter(page, `type=W&time[gt]=${april.from}&time[lt]=${april.to}`);
 
     await expect(startHandle(page)).toHaveAttribute("aria-valuenow", String(Date.parse(april.from)));
     await expect(endHandle(page)).toHaveAttribute("aria-valuenow", String(Date.parse(april.to)));
@@ -51,8 +49,10 @@ test.describe("time range", () => {
 
     await startHandle(page).press("ArrowRight");
 
-    await expect(filterBox(page)).toHaveValue(/^type=W&time\[gt\]=2026-04-\d\dT\d\d:\d\d:\d\dZ&time\[lt\]=2026-05-01T00:00:00Z$/);
-    const from = (await filterBox(page).inputValue()).match(/time\[gt\]=([^&]+)/)![1];
+    await expect
+      .poll(() => linkFilter(page))
+      .toMatch(/^type=W&time\[gt\]=2026-04-\d\dT\d\d:\d\d:\d\dZ&time\[lt\]=2026-05-01T00:00:00Z$/);
+    const from = linkFilter(page).match(/time\[gt\]=([^&]+)/)![1];
     expect(Date.parse(from)).toBeGreaterThan(Date.parse(april.from));
     await expect.poll(() => urlParam(page, "time[gt]")).toBe(from);
     await expect.poll(() => urlParam(page, "time[lt]")).toBe(april.to);
@@ -62,24 +62,24 @@ test.describe("time range", () => {
   test("keeps a range that ends now relative, so it still ends now on the next start", async ({ page, api }) => {
     // The default filter is the last day; the period buttons then pick other "last …" windows.
     await visitMap(page, { token: stubToken() });
+    await openFilters(page);
     await expect(filterBox(page)).toHaveValue(/&time\[gt\]=1d$/);
 
     await page.getByRole("button", { name: "Month", exact: true }).click();
 
-    await expect(filterBox(page)).toHaveValue("type=W|B|E|G|C|D|L|N&ssid=_%&time[gt]=30d");
+    await expect.poll(() => linkFilter(page)).toBe("type=W|B|E|G|C|D|L|N&ssid=_%&time[gt]=30d");
     await expect.poll(() => urlParam(page, "time[gt]")).toBe("30d");
     await expect.poll(() => lastTileParam(api, "time[gt]")).toBe("30d");
 
     // A fixed range before it leaves no `time[lt]` behind in the link.
-    await filterBox(page).fill(`type=W&time[gt]=${april.from}&time[lt]=${april.to}`);
-    await filterBox(page).press("Enter");
+    await enterFilter(page, `type=W&time[gt]=${april.from}&time[lt]=${april.to}`);
     await expect.poll(() => urlParam(page, "time[lt]")).toBe(april.to);
-    await filterBox(page).fill("type=W&time[gt]=1d");
-    await filterBox(page).press("Enter");
+    await enterFilter(page, "type=W&time[gt]=1d");
     await expect.poll(() => urlParam(page, "time[gt]")).toBe("1d");
     expect(urlParam(page, "time[lt]")).toBeNull();
 
     await page.goto("/");
+    await openFilters(page);
     await expect(filterBox(page)).toHaveValue("type=W&time[gt]=1d");
   });
 

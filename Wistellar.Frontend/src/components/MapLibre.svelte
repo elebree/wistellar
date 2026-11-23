@@ -1,6 +1,6 @@
 <script lang="ts">
   import "maplibre-gl/dist/maplibre-gl.css";
-  import { onMount, onDestroy, untrack } from "svelte";
+  import { onMount, onDestroy, untrack, type Snippet } from "svelte";
   import { page } from "$app/state";
   import { api, handleMapError, transformRequest } from "#lib/api.ts";
   import { hideSplash } from "#lib/splash.ts";
@@ -16,6 +16,7 @@
     type GeoJSONSource,
     type MapMouseEvent,
     type MapGeoJSONFeature,
+    type IControl,
     type Subscription,
   } from "maplibre-gl";
   import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
@@ -38,6 +39,11 @@
      * the map, an import and a sign-out; the page clears it to close its panel.
      */
     network?: Record<string, unknown>;
+    /**
+     * The page's own buttons for the column down the right edge, on top of the zoom buttons. The
+     * page gives them and the map's buttons one look.
+     */
+    controls?: Snippet;
   }
 
   let {
@@ -49,10 +55,12 @@
     dataVersion = 0,
     onChangeView,
     network = $bindable(),
+    controls,
   }: Props = $props();
 
   let map: Map;
   let mapContainer: HTMLElement;
+  let controlsElement = $state<HTMLElement>();
   let styleLoaded = $state(false);
   let selection = $state<string>();
   let networkSubscriptions: Subscription[] = [];
@@ -313,6 +321,14 @@
     collapse();
   }
 
+  /** A MapLibre control made of an element that already exists. */
+  function elementControl(element: HTMLElement): IControl {
+    return {
+      onAdd: () => element,
+      onRemove: () => element.remove(),
+    };
+  }
+
   function setupMap() {
     map = new Map({
       style: mapStyle,
@@ -335,24 +351,31 @@
     map.on("zoomend", onViewChangedEvent);
     map.on("dragend", onViewChangedEvent);
 
-    // Add zoom and rotation controls to the map.
+    // MapLibre stacks a bottom corner's controls upwards, each added one on top of the last. Down
+    // the right edge that makes: the page's controls, zoom, location, compass. Zoom and compass are
+    // two navigation controls so that the location button can go between them.
     map.addControl(
       new NavigationControl({
         visualizePitch: true,
         visualizeRoll: true,
-        showZoom: true,
+        showZoom: false,
         showCompass: true,
       }),
       "bottom-right",
     );
 
-    const geolocateControl = new GeolocateControl({
-      positionOptions: { enableHighAccuracy: true },
-      trackUserLocation: true,
-    });
+    map.addControl(
+      new GeolocateControl({
+        positionOptions: { enableHighAccuracy: true },
+        trackUserLocation: true,
+      }),
+      "bottom-right",
+    );
 
-    // Add geolocate control to the map.
-    map.addControl(geolocateControl, "bottom-right");
+    map.addControl(new NavigationControl({ showZoom: true, showCompass: false }), "bottom-right");
+
+    // The element stays Svelte's: MapLibre only moves it into the corner.
+    if (controlsElement) map.addControl(elementControl(controlsElement), "bottom-right");
 
     map.on("load", () => {
       map.addSource(geojsonSource, {
@@ -390,6 +413,12 @@
     <img src="github-mark.svg" alt="Wistellar logo" />
   </a>
   <div class="map" bind:this={mapContainer}></div>
+  {#if controls}
+    <!-- Moved into the map's bottom right corner once the map is set up. -->
+    <div class="maplibregl-ctrl page-controls" bind:this={controlsElement}>
+      {@render controls()}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -415,5 +444,89 @@
 
   .watermark img {
     width: 16px;
+  }
+
+  /*
+   * The column down the right edge: the page's buttons, then MapLibre's zoom, location and compass
+   * buttons, 10px apart. The page gives all of them the look of its menu button (`map-button` in
+   * +page.svelte); what is MapLibre's own is fitted here: zoom in and zoom out make one capsule of
+   * two halves, and the icons are 20px Heroicons-style masks.
+   *
+   * Each selector starts with `.map-wrap` and the corner so that it beats MapLibre's own rules,
+   * which go up to five classes for the location button's states.
+   */
+
+  /* MapLibre keeps translate(0) on every control. It would make the page's controls the box that a
+     fixed pane in them is placed in, instead of the window. */
+  .map-wrap :global(.maplibregl-ctrl-bottom-right .page-controls) {
+    transform: none;
+  }
+
+  .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group) {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  /* One capsule: zoom out pulls up under zoom in, so that their edges make a single 1px line. */
+  .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group button.maplibregl-ctrl-zoom-in) {
+    border-radius: 18px 18px 0 0;
+  }
+
+  .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group button.maplibregl-ctrl-zoom-out) {
+    margin-top: -11px;
+    border-radius: 0 0 18px 18px;
+  }
+
+  /* MapLibre draws its icons as background images in fixed colors; these are masks over the
+     button's text color instead. MapLibre picks the location button's image per state with up to
+     five classes, hence the !important. Forced colors keep the mask: the color is the system's. */
+  .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group .maplibregl-ctrl-icon) {
+    background-color: currentColor;
+    background-image: none !important;
+    mask: url("../lib/icons/crosshairs-dot.svg") center / 20px no-repeat;
+    forced-color-adjust: none;
+  }
+
+  .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon) {
+    mask-image: url("../lib/icons/plus.svg");
+  }
+
+  .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon) {
+    mask-image: url("../lib/icons/minus.svg");
+  }
+
+  /* The needle's north half in the text color, the south half light. MapLibre turns the icon with
+     the map's bearing and pitch, so the halves turn with it. */
+  .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-compass .maplibregl-ctrl-icon) {
+    background-color: transparent;
+    background-image: linear-gradient(currentColor 50%, var(--color-gray-300) 50%) !important;
+    mask-image: url("../lib/icons/compass-needle.svg");
+  }
+
+  /* The map no longer follows the location: no dot. */
+  .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group .maplibregl-ctrl-geolocate-background) {
+    color: var(--color-indigo-600);
+  }
+
+  .map-wrap
+    :global(
+      .maplibregl-ctrl-bottom-right
+        :is(.maplibregl-ctrl-geolocate-background, .maplibregl-ctrl-geolocate-background-error)
+        .maplibregl-ctrl-icon
+    ) {
+    mask-image: url("../lib/icons/crosshairs.svg");
+  }
+
+  .map-wrap
+    :global(
+      .maplibregl-ctrl-bottom-right
+        .maplibregl-ctrl-group
+        :is(.maplibregl-ctrl-geolocate-active-error, .maplibregl-ctrl-geolocate-background-error)
+    ) {
+    color: var(--color-red-600, oklch(57.7% 0.245 27.325));
   }
 </style>

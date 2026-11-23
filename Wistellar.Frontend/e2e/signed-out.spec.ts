@@ -1,5 +1,5 @@
 import { test, expect } from "./stub-api";
-import { menuButton, visitMap } from "./map";
+import { filtersButton, menuButton, visitMap } from "./map";
 
 test.describe("signed out", () => {
   test.beforeEach(async ({ page }) => {
@@ -8,7 +8,7 @@ test.describe("signed out", () => {
 
   test("shows the base map without asking for network data", async ({ page, api }) => {
     await expect.poll(() => api.style.length).toBeGreaterThan(0);
-    await expect(page.locator("#filter")).toHaveCount(0);
+    await expect(filtersButton(page)).toHaveCount(0);
     // Long enough for the map to have asked for tiles if it were going to.
     await page.waitForTimeout(1000);
     expect(api.geo).toHaveLength(0);

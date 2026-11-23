@@ -49,17 +49,17 @@ test.describe("networks, signed in", () => {
     await expect(detail(page, "Vendor")).toHaveText("Stub Vendor");
   });
 
-  test("shows the details on the left under the funnel's row, not at the clicked point", async ({ page }) => {
-    await visitMap(page, { token });
+  test("shows the details on the left under the short form, not at the clicked point", async ({ page }) => {
+    await visitMap(page, { token, filter: "type=W" });
     await openPanelAtCenter(page);
-    // Only phones give the filter row's place to the details.
-    await expect(page.locator("#filter")).toBeVisible();
+    // Only phones give the top row's place to the details.
+    const types = page.getByRole("button", { name: "Network types: WiFi", exact: true });
+    await expect(types).toBeVisible();
     await expect(filtersButton(page)).toBeVisible();
-    const filter = (await page.locator("#filter").boundingBox())!;
-    const funnel = (await filtersButton(page).boundingBox())!;
+    const row = (await types.boundingBox())!;
     const box = (await panel(page).boundingBox())!;
-    expect(Math.abs(box.x - filter.x), "left edge lines up with the filter box").toBeLessThan(1);
-    expect(box.y - (funnel.y + funnel.height), "10px below the funnel").toBeCloseTo(10, 0);
+    expect(Math.abs(box.x - row.x), "left edge lines up with the short form").toBeLessThan(1);
+    expect(box.y - (row.y + row.height), "10px below the short form").toBeCloseTo(10, 0);
     expect(box.x + box.width, "ends left of the clicked point at the center").toBeLessThan(640);
   });
 
@@ -111,7 +111,7 @@ test.describe("networks, signed in", () => {
     await page.getByRole("menuitem", { name: "Sign out" }).click();
 
     await expect(panel(page)).toHaveCount(0);
-    await expect(page.locator("#filter")).toHaveCount(0);
+    await expect(filtersButton(page)).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem("access_token"))).toBeNull();
     const before = api.geo.length;
     await zoomOut(page);
@@ -125,7 +125,7 @@ test.describe("networks, signed in", () => {
     await visitMap(page, { token });
     await expect(dialog(page)).toHaveAttribute("open");
     await expect(page.locator('dialog [role="status"]')).toContainText("Your session has expired");
-    await expect(page.locator("#filter")).toHaveCount(0);
+    await expect(filtersButton(page)).toHaveCount(0);
 
     // Dismissed, it stays closed and nothing asks for tiles any more.
     await page.keyboard.press("Escape");

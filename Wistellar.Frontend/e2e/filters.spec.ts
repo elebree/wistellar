@@ -2,8 +2,12 @@ import type { Page } from "@playwright/test";
 import { test, expect, stubToken, type StubApi } from "./stub-api";
 import {
   canvas,
+  enterFilter,
+  filterBox,
   filtersButton,
   filtersPane,
+  linkFilter,
+  menuButton,
   openFilters,
   visitMap,
   waitForNetworkAtCenter,
@@ -12,7 +16,6 @@ import {
 
 const defaultFilter = "type=W|B|E|G|C|D|L|N&ssid=_%&time[gt]=1d";
 
-const filterBox = (page: Page) => page.locator("#filter");
 const slider = (page: Page, name: string) => filtersPane(page).getByRole("slider", { name, exact: true });
 const summary = (page: Page, label: string) =>
   filtersPane(page).getByRole("group", { name: label, exact: true }).getByTestId("range-summary");
@@ -37,13 +40,9 @@ async function press(page: Page, sliderName: string, key: string, times = 1) {
 }
 
 test.describe("filters pane", () => {
-  test("opens from the funnel under the filter box, and closes with Escape or on the map", async ({ page }) => {
+  test("opens left of the button column, and closes with Escape or on the map", async ({ page }) => {
     await visitMap(page, { token: stubToken() });
-    const filter = (await filterBox(page).boundingBox())!;
     const funnel = (await filtersButton(page).boundingBox())!;
-    expect(funnel.x, "at the filter box's left edge").toBeCloseTo(filter.x, 0);
-    expect(funnel.y - (filter.y + filter.height), "10px below it").toBeCloseTo(10, 0);
-    expect(funnel.height, "as high").toBeCloseTo(filter.height, 0);
     await expect(filtersButton(page)).not.toHaveClass(/active/);
     await expect(rangeChips(page)).toHaveCount(0);
 
@@ -51,6 +50,7 @@ test.describe("filters pane", () => {
     await expect(filtersPane(page)).toBeVisible();
     await expect(filtersButton(page)).toHaveAttribute("aria-expanded", "true");
     await expect(filtersPane(page).getByRole("button", { name: "WiFi", exact: true }), "first control").toBeFocused();
+    await expect(filterBox(page), "the whole query, at the bottom").toHaveValue(defaultFilter);
     for (const label of ["Seen across", "Seen over", "Sightings"]) {
       await expect(summary(page, label), label).toHaveText("Any");
     }
@@ -58,15 +58,17 @@ test.describe("filters pane", () => {
       "Distance between the farthest places it was seen",
     );
     const pane = (await filtersPane(page).boundingBox())!;
-    expect(pane.x, "under the funnel, at its left edge").toBeCloseTo(funnel.x, 0);
-    expect(pane.y - (funnel.y + funnel.height), "10px below it").toBeCloseTo(10, 0);
+    const bar = (await page.locator(".time-filter").boundingBox())!;
+    expect(pane.x + pane.width, "ends 10px left of the funnel").toBeCloseTo(funnel.x - 10, 0);
+    expect(pane.y + pane.height, "10px above the time range bar").toBeCloseTo(bar.y - 10, 0);
+    expect(pane.y, "the top row is empty: 10px from the top or more").toBeGreaterThanOrEqual(10);
 
     await page.keyboard.press("Escape");
     await expect(filtersPane(page)).toHaveCount(0);
     await expect(filtersButton(page)).toBeFocused();
 
     await openFilters(page);
-    await canvas(page).click({ position: { x: 900, y: 600 } });
+    await canvas(page).click({ position: { x: 300, y: 400 } });
     await expect(filtersPane(page)).toHaveCount(0);
   });
 
@@ -158,12 +160,9 @@ test.describe("filters pane", () => {
     await expect(summary(page, "Sightings")).toHaveText("at most 1");
     await expect(slider(page, "Maximum sightings")).toHaveAttribute("aria-valuetext", "At most 1");
 
-    // Both handles on 5. Clicking the filter box closes the pane, as it would for a user.
-    await filterBox(page).click();
-    await expect(filtersPane(page)).toHaveCount(0);
+    // Both handles on 5, typed into the query field.
     await filterBox(page).fill("type=W&locations[gt]=4&locations[lt]=6");
     await filterBox(page).press("Enter");
-    await openFilters(page);
     await expect(summary(page, "Sightings")).toHaveText("exactly 5");
   });
 
@@ -192,7 +191,7 @@ test.describe("filters pane", () => {
     await waitForNoNetworkAtCenter(page);
   });
 
-  test("shows what limits the map next to the funnel: the shown types and a chip per range", async ({ page }) => {
+  test("shows what limits the map in the top row: the shown types and a chip per range", async ({ page }) => {
     await visitMap(page, {
       token: stubToken(),
       filter: "type=W|E&range[gt]=10&range[lt]=1000&dwell[gt]=1h",
@@ -208,18 +207,16 @@ test.describe("filters pane", () => {
     await expect(across.locator("svg")).toBeVisible();
     await expect(shortForm(page, /^Sightings:/)).toHaveCount(0);
 
-    const funnel = (await filtersButton(page).boundingBox())!;
+    expect((await types.boundingBox())!.x, "10px from the left edge").toBeCloseTo(10, 0);
     for (const item of [types, across, over]) {
-      const box = (await item.boundingBox())!;
-      expect(box.y, "in the funnel's row").toBeCloseTo(funnel.y, 0);
-      expect(box.x).toBeGreaterThan(funnel.x);
+      expect((await item.boundingBox())!.y, "in the top row").toBeCloseTo(10, 0);
     }
 
-    // Each opens the pane at its control.
+    // Each opens the pane at its control, also while it is open.
     await over.click();
     await expect(slider(page, "Minimum time span")).toBeFocused();
-    await page.keyboard.press("Escape");
     await types.click();
+    await expect(filtersPane(page)).toBeVisible();
     await expect(filtersPane(page).getByRole("button", { name: "WiFi", exact: true })).toBeFocused();
   });
 
@@ -248,6 +245,7 @@ test.describe("filters pane", () => {
     await waitForNetworkAtCenter(page);
 
     await page.reload();
+    await openFilters(page);
     await expect(filterBox(page)).toHaveValue("type=W|B|E|G|C|D|L|N&ssid=stub wifi one|%beacon%&time[gt]=1d");
   });
 
@@ -272,15 +270,14 @@ test.describe("filters pane", () => {
     await waitForNetworkAtCenter(page);
   });
 
-  test("shows the patterns next to the funnel, each opening the pane at its field", async ({ page }) => {
+  test("shows the patterns in the top row, each opening the pane at its field", async ({ page }) => {
     await visitMap(page, { token: stubToken(), filter: "type=W&ssid=%Overlap%&bssid=00:00:00:00:00:0_" });
     await expect(filtersButton(page)).toHaveClass(/active/);
     const name = shortForm(page, "Name: %Overlap%");
     const id = shortForm(page, "MAC or cell ID: 00:00:00:00:00:0_");
     await expect(name).toHaveText("%Overlap%");
     await expect(id).toHaveText("00:00:00:00:00:0_");
-    const funnel = (await filtersButton(page).boundingBox())!;
-    expect((await name.boundingBox())!.y, "in the funnel's row").toBeCloseTo(funnel.y, 0);
+    expect((await name.boundingBox())!.y, "in the top row").toBeCloseTo(10, 0);
 
     await name.click();
     await expect(nameField(page)).toBeFocused();
@@ -297,14 +294,14 @@ test.describe("filters pane", () => {
     await nameField(page).fill("Stub%");
     await page.keyboard.press("Escape");
     await expect(filtersPane(page)).toHaveCount(0);
-    await expect(filterBox(page)).toHaveValue(defaultFilter);
+    await expect(patternChips(page), "nothing taken").toHaveCount(0);
 
     await openFilters(page);
     await expect(nameField(page)).toHaveValue("_%");
     await nameField(page).fill("Stub%");
-    await canvas(page).click({ position: { x: 900, y: 600 } });
+    await canvas(page).click({ position: { x: 300, y: 400 } });
     await expect(filtersPane(page)).toHaveCount(0);
-    await expect(filterBox(page)).toHaveValue("type=W|B|E|G|C|D|L|N&ssid=Stub%&time[gt]=1d");
+    await expect.poll(() => linkFilter(page)).toBe("type=W|B|E|G|C|D|L|N&ssid=Stub%&time[gt]=1d");
     await expect(shortForm(page, "Name: Stub%")).toBeVisible();
 
     // Emptied, it takes `ssid` out: networks with and without a name.
@@ -313,6 +310,27 @@ test.describe("filters pane", () => {
     await nameField(page).press("Enter");
     await expect(filterBox(page)).toHaveValue("type=W|B|E|G|C|D|L|N&time[gt]=1d");
     await expect(patternChips(page)).toHaveCount(0);
+  });
+
+  test("takes a whole query typed into the query field, also when the pane closes on the map", async ({ page }) => {
+    await visitMap(page, { token: stubToken() });
+    await enterFilter(page, "type=W&dwell[gt]=1h");
+    await expect(summary(page, "Seen over"), "the controls follow").toHaveText("over 1 h");
+    await expect(shortForm(page, "Seen over: over 1 h")).toBeVisible();
+    await expect.poll(() => linkFilter(page)).toBe("type=W&dwell[gt]=1h");
+
+    // Escape drops what was typed.
+    await filterBox(page).fill("type=W");
+    await page.keyboard.press("Escape");
+    await expect(filtersPane(page)).toHaveCount(0);
+    await expect.poll(() => linkFilter(page)).toBe("type=W&dwell[gt]=1h");
+
+    await openFilters(page);
+    await filterBox(page).fill("type=W|L");
+    await canvas(page).click({ position: { x: 300, y: 400 } });
+    await expect(filtersPane(page)).toHaveCount(0);
+    await expect.poll(() => linkFilter(page)).toBe("type=W|L");
+    await expect(shortForm(page, /^Seen over:/)).toHaveCount(0);
   });
 
   test("resets the types, the patterns and all bounds at once", async ({ page }) => {
@@ -347,8 +365,9 @@ test.describe("filters on a phone", () => {
     await visitMap(page, { token: stubToken() });
     await openFilters(page);
     const pane = (await filtersPane(page).boundingBox())!;
+    const funnel = (await filtersButton(page).boundingBox())!;
     expect(pane.x).toBeGreaterThanOrEqual(10);
-    expect(pane.x + pane.width, "inside the window").toBeLessThanOrEqual(390 - 10);
+    expect(pane.x + pane.width, "left of the button column").toBeLessThanOrEqual(funnel.x - 10);
   });
 
   test("wrap the short form onto more lines", async ({ page }) => {
@@ -357,12 +376,13 @@ test.describe("filters on a phone", () => {
       token: stubToken(),
       filter: "type=W|L&range[lt]=1000&dwell[gt]=1h&locations[lt]=50",
     });
-    const funnel = (await filtersButton(page).boundingBox())!;
     await expect(rangeChips(page)).toHaveCount(3);
+    const first = (await shortForm(page, /^Network types:/).boundingBox())!;
+    const menu = (await menuButton(page).boundingBox())!;
     let wrapped = false;
     for (const box of await Promise.all((await rangeChips(page).all()).map((c) => c.boundingBox()))) {
-      expect(box!.x + box!.width, "inside the window").toBeLessThanOrEqual(390 - 10);
-      wrapped ||= box!.y > funnel.y + funnel.height;
+      expect(box!.x + box!.width, "ends 10px before the menu button").toBeLessThanOrEqual(menu.x - 10);
+      wrapped ||= box!.y > first.y + first.height;
     }
     expect(wrapped, "some chips on a line of their own").toBe(true);
     // The network details take the place of the whole filter row: see layout.spec.ts.

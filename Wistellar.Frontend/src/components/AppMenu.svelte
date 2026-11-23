@@ -97,12 +97,13 @@
 <!-- Capture phase, so the map's own pointer handling can't swallow the event. -->
 <svelte:window onpointerdowncapture={onWindowPointerDown} />
 
+<!-- The button gets the look of the other buttons over the map (`map-button`) from the page. -->
 <div class="app-menu maplibregl-ctrl" bind:this={root}>
   <button
     bind:this={button}
     id="{id}-button"
     type="button"
-    class="menu-button"
+    class="map-button"
     aria-label={label}
     aria-haspopup="menu"
     aria-expanded={open}
@@ -148,30 +149,3 @@
     </div>
   {/if}
 </div>
-
-<style>
-  /* Built like MapLibre's control groups: the white and the ring sit on the container and the button
-     stays transparent, so MapLibre's own `.maplibregl-ctrl button` hover tint lands on white. */
-  .app-menu {
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
-  }
-
-  /* 36px matches the filter box's height. */
-  .menu-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background-color: transparent;
-    color: #333;
-  }
-
-  .menu-button:focus-visible {
-    outline: none;
-    box-shadow: 0 0 2px 2px #0096ff;
-  }
-</style>

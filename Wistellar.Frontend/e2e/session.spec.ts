@@ -1,5 +1,5 @@
 import { test, expect, isTile, stubToken, user } from "./stub-api";
-import { dialog, visitMap } from "./map";
+import { dialog, filtersButton, visitMap } from "./map";
 
 test.describe("stored session", () => {
   const storedToken = (page: import("@playwright/test").Page) =>
@@ -8,14 +8,14 @@ test.describe("stored session", () => {
   test("restores a valid token on load", async ({ page }) => {
     const tileRequest = page.waitForRequest((request) => isTile(new URL(request.url())));
     await visitMap(page, { token: stubToken() });
-    await expect(page.locator("#filter")).toBeVisible();
+    await expect(filtersButton(page)).toBeVisible();
     await tileRequest;
   });
 
   test("drops a malformed token and stays signed out", async ({ page }) => {
     await visitMap(page, { token: "not-a-jwt" });
     await expect.poll(() => storedToken(page)).toBeNull();
-    await expect(page.locator("#filter")).toHaveCount(0);
+    await expect(filtersButton(page)).toHaveCount(0);
     await expect(dialog(page)).not.toHaveAttribute("open");
   });
 

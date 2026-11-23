@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { test, expect, isSignIn, isTile, stubToken } from "./stub-api";
-import { dialog, fillInSignIn, mapQuery, menuButton, openSignIn, visitMap } from "./map";
+import { dialog, fillInSignIn, filtersButton, mapQuery, menuButton, openSignIn, visitMap } from "./map";
 
 const submit = (page: Page) => page.locator('dialog button[type="submit"]');
 const alert = (page: Page) => page.locator('dialog [role="alert"]');
@@ -84,7 +84,7 @@ test.describe("sign-in dialog", () => {
     await submit(page).click();
 
     await expect(dialog(page)).not.toHaveAttribute("open");
-    await expect(page.locator("#filter")).toBeVisible();
+    await expect(filtersButton(page)).toBeVisible();
     const { token } = await (await signInResponse).json();
     expect((await (await tileRequest).allHeaders()).authorization).toBe(`Bearer ${token}`);
     expect(mapQuery(page)).toEqual(queryBefore);

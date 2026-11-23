@@ -2,6 +2,8 @@ import type { Page, Route } from "@playwright/test";
 import { test, expect, isTile, positionOf, stubToken, type StubApi } from "./stub-api";
 import {
   canvas,
+  enterFilter,
+  filterBox,
   filtersButton,
   openFilters,
   typeToggles,
@@ -12,7 +14,6 @@ import {
 
 // The type toggles, in the filters pane, read and write the filter's `type`.
 
-const filterBox = (page: Page) => page.locator("#filter");
 const toggle = (page: Page, label: string) => typeToggles(page).getByRole("button", { name: label, exact: true });
 
 // Each toggle is named by its badge text.
@@ -70,8 +71,8 @@ test.describe("network type toggles", () => {
 
   test("switch a type off and on again in the filter, the link and the tiles", async ({ page, api }) => {
     await visitMap(page, { token: stubToken() });
-    await expect(filterBox(page)).toHaveValue(defaultFilter);
     await openFilters(page);
+    await expect(filterBox(page)).toHaveValue(defaultFilter);
     await expectPressed(page, labels);
 
     await toggle(page, "BLE").click();
@@ -101,12 +102,10 @@ test.describe("network type toggles", () => {
     await waitForNetworkAtCenter(page);
   });
 
-  test("follow types typed into the filter box", async ({ page }) => {
+  test("follow types typed into the query field", async ({ page }) => {
     await visitMap(page, { token: stubToken() });
 
-    await filterBox(page).fill("type=E|G&ssid=_%");
-    await filterBox(page).press("Enter");
-    await openFilters(page);
+    await enterFilter(page, "type=E|G&ssid=_%");
 
     await expectPressed(page, ["BLE", "GSM"]);
   });

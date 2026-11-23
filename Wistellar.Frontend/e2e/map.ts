@@ -7,6 +7,10 @@ export const panel = (page: Page) => page.getByRole("region", { name: "Network d
 export const canvas = (page: Page) => page.locator(".maplibregl-canvas");
 export const filtersButton = (page: Page) => page.getByRole("button", { name: "Filters", exact: true });
 export const filtersPane = (page: Page) => page.getByRole("dialog", { name: "Filters" });
+/** The query field in the filters pane: the whole filter, as typed. There only while the pane is open. */
+export const filterBox = (page: Page) => filtersPane(page).locator("#filter");
+/** MapLibre's location button. Its name changes with its state, so this goes by its class. */
+export const locateButton = (page: Page) => page.locator(".maplibregl-ctrl-geolocate");
 /** The type toggles, in the filters pane. */
 export const typeToggles = (page: Page) => filtersPane(page).getByRole("group", { name: "Network types" });
 
@@ -14,6 +18,20 @@ export const typeToggles = (page: Page) => filtersPane(page).getByRole("group", 
 export async function openFilters(page: Page) {
   await filtersButton(page).click();
   await expect(filtersPane(page)).toBeVisible();
+}
+
+/** The filter as the page writes it into the link, without the view. */
+export function linkFilter(page: Page) {
+  const params = new URL(page.url()).searchParams;
+  for (const name of ["z", "lat", "lon"]) params.delete(name);
+  return Array.from(params, ([name, value]) => `${name}=${value}`).join("&");
+}
+
+/** Types a whole query into the filters pane's query field, opening the pane first. */
+export async function enterFilter(page: Page, query: string) {
+  if (!(await filtersPane(page).isVisible())) await openFilters(page);
+  await filterBox(page).fill(query);
+  await filterBox(page).press("Enter");
 }
 
 /** Compare view parameters numerically, allowing the app to change their decimal formatting. */
