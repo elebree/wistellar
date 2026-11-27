@@ -37,7 +37,7 @@
 	"dependencies": {
 		"@tailwindcss/vite": "^4.3.5",
 		"axios": "^1.21.1",
-		"jose": "^6.2.17",
+		"jose": "^6.2.18",
 		"jsooner": "^1.5.0",
 		"jwt-decode": "^4.0.0",
 		"lucide-static": "^1.77.0",
