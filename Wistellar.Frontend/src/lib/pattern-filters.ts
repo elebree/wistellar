@@ -4,8 +4,8 @@
 // WiFi terms.
 
 import { getFilterParam, setFilterParam } from "./filter-query.ts";
-import tagIcon from "./icons/tag.svg?raw";
-import hashtagIcon from "./icons/hashtag.svg?raw";
+import tagIcon from "lucide-static/icons/tag.svg?raw";
+import hashIcon from "lucide-static/icons/hash.svg?raw";
 
 export interface PatternFilter {
   /** The query parameter. */
@@ -34,7 +34,7 @@ export const patternFilters: PatternFilter[] = [
     label: "MAC or cell ID",
     // The importers make the cell ID from the PLMN, the area code and the cell: 26201_12345_678.
     hint: "MAC address, or MCCMNC_LAC_CID for a cell",
-    icon: hashtagIcon,
+    icon: hashIcon,
   },
 ];
 

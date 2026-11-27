@@ -9,9 +9,16 @@
     filter: string;
     /** The bar's height in px, for the page to keep the map's own controls above it. */
     height?: number;
+    openHeight?: number;
+    closedHeight?: number;
   }
 
-  let { filter = $bindable(), height = $bindable(0) }: Props = $props();
+  let {
+    filter = $bindable(),
+    height = $bindable(0),
+    openHeight = $bindable(0),
+    closedHeight = $bindable(0),
+  }: Props = $props();
 
   // Shown until the filter has a range of its own: the last day.
   const now = Date.now();
@@ -49,8 +56,26 @@
 
   // The border box, unlike offsetHeight, keeps fractions of a pixel.
   let boxSize = $state<ResizeObserverSize[]>();
+  let bar: HTMLDivElement;
+  let rulerExtent = $state(72);
+  let rulerShown = $state(false);
+  $effect(() => {
+    const card = bar.querySelector(".trs");
+    const ruler = bar.querySelector(".trs-ruler");
+    if (!card || !ruler) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const rulerHeight = entry.borderBoxSize[0].blockSize;
+      rulerShown = rulerHeight > 0;
+      if (rulerShown) rulerExtent = rulerHeight + parseFloat(getComputedStyle(card).rowGap);
+    });
+    observer.observe(ruler);
+    return () => observer.disconnect();
+  });
+
   $effect(() => {
     height = boxSize?.[0]?.blockSize ?? 0;
+    openHeight = rulerShown ? height : height + rulerExtent;
+    closedHeight = rulerShown ? height - rulerExtent : height;
   });
 
   function onchange(change: TimeRangeChange) {
@@ -59,7 +84,7 @@
   }
 </script>
 
-<div class="time-filter" bind:borderBoxSize={boxSize}>
+<div class="time-filter" bind:this={bar} bind:borderBoxSize={boxSize}>
   <!-- The app is in English; dates and the first day of the week still follow the browser's locale. -->
   <TimeRangeSlider
     bind:from

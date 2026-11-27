@@ -2,7 +2,6 @@
   export interface MenuItem {
     id: string;
     label: string;
-    /** SVG markup, imported with `?raw` from `src/lib/icons/`. Use `currentColor` so it follows the text. */
     icon?: string;
     action: () => void;
     /** Hides the item when it returns false. Re-evaluated whenever state it reads changes. */
@@ -13,7 +12,7 @@
 <script lang="ts">
   import { tick, type Snippet } from "svelte";
   import Icon from "./Icon.svelte";
-  import menuIcon from "#lib/icons/menu.svg?raw";
+  import menuIcon from "lucide-static/icons/menu.svg?raw";
 
   interface Props {
     items: MenuItem[];

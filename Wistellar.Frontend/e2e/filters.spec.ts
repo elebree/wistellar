@@ -22,7 +22,7 @@ const summary = (page: Page, label: string) =>
 /** A button of the short form, by its accessible name ("Seen over: over 1 h"). */
 const shortForm = (page: Page, name: string | RegExp) =>
   page.getByRole("button", { name, exact: typeof name === "string" });
-const rangeChips = (page: Page) => shortForm(page, /^(Seen across|Seen over|Sightings):/);
+const rangeChips = (page: Page) => shortForm(page, /^(Seen across|Seen over|Locations):/);
 const patternField = (page: Page, label: string) =>
   filtersPane(page).getByRole("textbox", { name: label, exact: true });
 const nameField = (page: Page) => patternField(page, "Name");
@@ -51,7 +51,7 @@ test.describe("filters pane", () => {
     await expect(filtersButton(page)).toHaveAttribute("aria-expanded", "true");
     await expect(filtersPane(page).getByRole("button", { name: "WiFi", exact: true }), "first control").toBeFocused();
     await expect(filterBox(page), "the whole query, at the bottom").toHaveValue(defaultFilter);
-    for (const label of ["Seen across", "Seen over", "Sightings"]) {
+    for (const label of ["Seen across", "Seen over", "Locations"]) {
       await expect(summary(page, label), label).toHaveText("Any");
     }
     await expect(filtersPane(page).getByRole("group", { name: "Seen across" })).toHaveAccessibleDescription(
@@ -106,22 +106,22 @@ test.describe("filters pane", () => {
     await expect(filterBox(page)).toHaveValue(defaultFilter);
   });
 
-  test("counts sightings inclusively, for the server's strict bounds", async ({ page }) => {
+  test("counts locations inclusively, for the server's strict bounds", async ({ page }) => {
     await visitMap(page, { token: stubToken() });
     await openFilters(page);
 
     // "At most 500" is `[lt]=501`, "at least 2" is `[gt]=1`.
-    await press(page, "Maximum sightings", "ArrowLeft", 2);
+    await press(page, "Maximum locations", "ArrowLeft", 2);
     await expect(filterBox(page)).toHaveValue(`${defaultFilter}&locations[lt]=501`);
-    await expect(summary(page, "Sightings")).toHaveText("at most 500");
-    await press(page, "Minimum sightings", "ArrowRight");
+    await expect(summary(page, "Locations")).toHaveText("at most 500");
+    await press(page, "Minimum locations", "ArrowRight");
     await expect(filterBox(page)).toHaveValue(`${defaultFilter}&locations[lt]=501&locations[gt]=1`);
-    await expect(summary(page, "Sightings")).toHaveText("2 – 500");
-    await expect(slider(page, "Minimum sightings")).toHaveAttribute("aria-valuetext", "At least 2");
+    await expect(summary(page, "Locations")).toHaveText("2 – 500");
+    await expect(slider(page, "Minimum locations")).toHaveAttribute("aria-valuetext", "At least 2");
 
-    // The lower handle at 1 sets no bound: every network has a sighting.
-    await press(page, "Minimum sightings", "Home");
-    await press(page, "Maximum sightings", "End");
+    // The lower handle at 1 sets no bound: every network has a location.
+    await press(page, "Minimum locations", "Home");
+    await press(page, "Maximum locations", "End");
     await expect(filterBox(page)).toHaveValue(defaultFilter);
   });
 
@@ -135,7 +135,7 @@ test.describe("filters pane", () => {
     await expect(summary(page, "Seen across")).toHaveText("over 37 m");
     await expect(slider(page, "Minimum distance")).toHaveAttribute("aria-valuetext", "More than 37 m");
     await expect(summary(page, "Seen over")).toHaveText("under 2 h");
-    await expect(summary(page, "Sightings")).toHaveText("4 – 49");
+    await expect(summary(page, "Locations")).toHaveText("4 – 49");
   });
 
   test("keeps the lower distance handle below the upper one", async ({ page }) => {
@@ -150,34 +150,34 @@ test.describe("filters pane", () => {
     await expect(filterBox(page)).toHaveValue("type=W&range[gt]=10000");
   });
 
-  test("lets the sightings handles meet, and offers nothing below one sighting", async ({ page }) => {
+  test("lets the locations handles meet, and offers nothing below one location", async ({ page }) => {
     await visitMap(page, { token: stubToken(), filter: "type=W" });
     await openFilters(page);
 
     // The upper handle all the way left: networks seen once.
-    await press(page, "Maximum sightings", "Home");
+    await press(page, "Maximum locations", "Home");
     await expect(filterBox(page)).toHaveValue("type=W&locations[lt]=2");
-    await expect(summary(page, "Sightings")).toHaveText("at most 1");
-    await expect(slider(page, "Maximum sightings")).toHaveAttribute("aria-valuetext", "At most 1");
+    await expect(summary(page, "Locations")).toHaveText("at most 1");
+    await expect(slider(page, "Maximum locations")).toHaveAttribute("aria-valuetext", "At most 1");
 
     // Both handles on 5, typed into the query field.
     await filterBox(page).fill("type=W&locations[gt]=4&locations[lt]=6");
     await filterBox(page).press("Enter");
-    await expect(summary(page, "Sightings")).toHaveText("exactly 5");
+    await expect(summary(page, "Locations")).toHaveText("exactly 5");
   });
 
-  // The network at the center: 3 sightings over 1 h 2 min.
-  test("hides the networks with fewer sightings", async ({ page }) => {
+  // The network at the center: 3 locations over 1 h 2 min.
+  test("hides the networks with fewer locations", async ({ page }) => {
     await visitMap(page, { token: stubToken() });
     await waitForNetworkAtCenter(page);
     await openFilters(page);
 
-    await press(page, "Minimum sightings", "ArrowRight", 3);
-    await expect(summary(page, "Sightings")).toHaveText("at least 5");
+    await press(page, "Minimum locations", "ArrowRight", 3);
+    await expect(summary(page, "Locations")).toHaveText("at least 5");
     await waitForNoNetworkAtCenter(page);
 
-    await press(page, "Minimum sightings", "ArrowLeft");
-    await expect(summary(page, "Sightings")).toHaveText("at least 3");
+    await press(page, "Minimum locations", "ArrowLeft");
+    await expect(summary(page, "Locations")).toHaveText("at least 3");
     await waitForNetworkAtCenter(page);
   });
 
@@ -200,16 +200,27 @@ test.describe("filters pane", () => {
 
     const types = shortForm(page, "Network types: WiFi, Bluetooth LE");
     await expect(types.locator(".type-badge")).toHaveCount(2);
+    const badge = (await types.locator(".type-badge").first().boundingBox())!;
+    expect([badge.width, badge.height], "as large as the other chips' icons").toEqual([20, 20]);
     const across = shortForm(page, "Seen across: 10 m – 1 km");
     const over = shortForm(page, "Seen over: over 1 h");
     await expect(across).toHaveText("10 m – 1 km");
     await expect(over).toHaveText("over 1 h");
     await expect(across.locator("svg")).toBeVisible();
-    await expect(shortForm(page, /^Sightings:/)).toHaveCount(0);
+    await expect(shortForm(page, /^Locations:/)).toHaveCount(0);
 
     expect((await types.boundingBox())!.x, "10px from the left edge").toBeCloseTo(10, 0);
+    // Like the map's buttons: as high, the same see-through white and gray edge, rounded ends.
+    const lookOf = (locator: typeof types) =>
+      locator.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return { height: style.height, border: style.border, background: style.backgroundColor };
+      });
+    const buttonLook = await lookOf(menuButton(page));
     for (const item of [types, across, over]) {
       expect((await item.boundingBox())!.y, "in the top row").toBeCloseTo(10, 0);
+      expect(await lookOf(item)).toEqual(buttonLook);
+      await expect(item).toHaveCSS("border-radius", "18px");
     }
 
     // Each opens the pane at its control, also while it is open.
@@ -371,7 +382,7 @@ test.describe("filters on a phone", () => {
   });
 
   test("wrap the short form onto more lines", async ({ page }) => {
-    // Bounds the network at the center passes: WiFi, 0 m across, 3 sightings over 1 h 2 min.
+    // Bounds the network at the center passes: WiFi, 0 m across, 3 locations over 1 h 2 min.
     await visitMap(page, {
       token: stubToken(),
       filter: "type=W|L&range[lt]=1000&dwell[gt]=1h&locations[lt]=50",

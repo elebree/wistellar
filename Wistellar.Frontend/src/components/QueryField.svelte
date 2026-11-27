@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import Icon from "./Icon.svelte";
-  import codeIcon from "#lib/icons/code-bracket.svg?raw";
+  import codeIcon from "lucide-static/icons/code.svg?raw";
 
   interface Props {
     /** The filter query, all of it, as the link has it. */

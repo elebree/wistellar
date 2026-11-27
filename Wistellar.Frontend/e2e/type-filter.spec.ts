@@ -48,8 +48,15 @@ test.describe("network type toggles", () => {
     await expectPressed(page, ["WiFi", "4G"]);
     await expect(toggle(page, "WiFi")).toHaveAttribute("style", /--type-color: tomato/);
     await expect(toggle(page, "4G")).toHaveAttribute("style", /--type-color: darkolivegreen/);
-    await expect(toggle(page, "WiFi")).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
-    await expect(toggle(page, "BT")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    // No box: pressed shows in the layer's color, off in grey.
+    for (const label of ["WiFi", "BT"]) {
+      await expect(toggle(page, label)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      await expect(toggle(page, label)).toHaveCSS("box-shadow", "none");
+    }
+    const wifiColor = await toggle(page, "WiFi").evaluate((el) => getComputedStyle(el).color);
+    const btColor = await toggle(page, "BT").evaluate((el) => getComputedStyle(el).color);
+    expect(wifiColor, "pressed: the layer's color").not.toBe(btColor);
+    await expect(typeToggles(page)).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(toggle(page, "5G")).toHaveAttribute("title", "5G NR");
     await expect(toggle(page, "4G")).toHaveAttribute("title", "LTE (4G)");
 

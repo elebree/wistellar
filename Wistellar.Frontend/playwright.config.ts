@@ -1,3 +1,4 @@
+import { availableParallelism } from "node:os";
 import { defineConfig } from "@playwright/test";
 
 // End-to-end tests for the SPA. They run against a production build served by `vite preview` and
@@ -8,6 +9,7 @@ const baseURL = "https://localhost:5179";
 export default defineConfig({
   testDir: "e2e",
   fullyParallel: true,
+  workers: Math.min(4, Math.ceil(availableParallelism() / 2)),
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? "github" : "list",
   use: {

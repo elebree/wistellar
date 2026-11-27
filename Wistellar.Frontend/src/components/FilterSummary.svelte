@@ -38,7 +38,7 @@
         {#each limitedTypes as type, i (i)}
           {#if type}
             <span class="type-badge" style:--type-color={typeColor(type)}>
-              <Icon svg={type.icon} class="size-8" />
+              <Icon svg={type.icon} class="size-5" />
             </span>
           {/if}
         {/each}
@@ -86,32 +86,27 @@
     max-width: calc(100vw - 66px);
   }
 
-  /* White, the filter box's 1px outline, 36px high, like the map's buttons. Qualified with the row
-     so that they beat MapLibre's `.maplibregl-ctrl button:not(:disabled):hover`, which would make
-     them see-through. */
   .summary-row .summary {
     display: flex;
     flex-shrink: 0;
     align-items: center;
     height: 36px;
-    border-radius: calc(0.25rem + 2px);
-    background: #fff;
-    outline: 1px solid var(--color-gray-300);
-    outline-offset: -1px;
+    border: 1px solid var(--color-gray-300);
+    border-radius: 18px;
+    background: rgb(255 255 255 / 0.8);
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* The shown types' badges, as in the type toggles. */
   .summary-row .summary.types {
-    gap: 2px;
-    padding: 2px;
+    gap: 4px;
+    padding-inline: 9px;
   }
 
   .summary-row .summary.range,
   .summary-row .summary.pattern {
     gap: 6px;
-    padding-inline: 8px 10px;
+    padding-inline: 10px 13px;
     font-size: 0.875rem;
     color: var(--color-gray-900);
     white-space: nowrap;
@@ -133,7 +128,7 @@
   }
 
   .summary-row .summary:hover {
-    background: var(--color-gray-50);
+    background: color-mix(in srgb, var(--color-gray-100) 90%, transparent);
   }
 
   .summary-row .summary:focus-visible {

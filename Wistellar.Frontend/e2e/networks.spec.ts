@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { test, expect, isTile, stubToken } from "./stub-api";
 import {
   canvas,
@@ -30,23 +31,114 @@ test.describe("networks, signed in", () => {
     await expect(panel(page)).toHaveCount(1);
     await expect(panel(page).getByText("00:00:00:00:00:01", { exact: true })).toBeVisible();
     await expect(panel(page).getByText("Stub WiFi One", { exact: true })).toBeVisible();
-    // The type as the same badge as its toggle.
+    // The type as the same icon as its toggle, without the toggle's box, as large as other icons.
     const type = panel(page).getByRole("img", { name: "WiFi", exact: true });
     await expect(type).toHaveClass(/type-badge/);
     await expect(type).toHaveAttribute("style", /--type-color: tomato/);
+    await expect(type).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await openFilters(page);
-    const toggleTint = await typeToggles(page)
+    const toggleColor = await typeToggles(page)
       .getByRole("button", { name: "WiFi", exact: true })
-      .evaluate((el) => getComputedStyle(el).backgroundColor);
-    await expect(type, "same tint as the WiFi toggle").toHaveCSS("background-color", toggleTint);
+      .evaluate((el) => getComputedStyle(el).color);
+    await expect(type, "the WiFi toggle's color").toHaveCSS("color", toggleColor);
     const box = (await type.boundingBox())!;
-    expect([box.width, box.height], "the toggle's square").toEqual([32, 32]);
-    await expect(panel(page).locator("span.bg-green-50")).toHaveText(["WPA2-PSK-CCMP", "ESS"]);
+    expect([box.width, box.height], "as large as the other icons").toEqual([20, 20]);
+    await expect(panel(page).getByRole("button", { name: /^Copy capability: / })).toHaveText(["WPA2-PSK-CCMP", "ESS"]);
     await expect(detail(page, "Last seen")).toHaveText(/^\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}:\d{2}$/);
     await expect(detail(page, "Seen over")).toHaveText("1 h 2 min");
     await expect(detail(page, "Seen across")).toHaveText("0 m");
-    await expect(detail(page, "Sightings")).toHaveText("3");
+    await expect(detail(page, "Locations")).toHaveText("3");
+    await expect(detail(page, "Level")).toHaveText("-50 dBm");
     await expect(detail(page, "Vendor")).toHaveText("Stub Vendor");
+  });
+
+  test("shows the type, the name and the MAC in one line, and an icon by each detail", async ({ page }) => {
+    await visitMap(page, { token });
+    await openPanelAtCenter(page);
+    const line = await Promise.all(
+      [
+        panel(page).getByRole("img", { name: "WiFi", exact: true }),
+        panel(page).getByRole("button", { name: "Copy name: Stub WiFi One" }),
+        panel(page).getByRole("button", { name: "Copy MAC or cell ID: 00:00:00:00:00:01" }),
+      ].map(async (item) => (await item.boundingBox())!),
+    );
+    for (const [i, box] of line.entries()) {
+      expect(box.y + box.height / 2, `item ${i} in the line`).toBeCloseTo(line[0].y + line[0].height / 2, 0);
+      if (i > 0) expect(box.x, `item ${i} after the one before`).toBeGreaterThan(line[i - 1].x + line[i - 1].width);
+    }
+
+    // No icons in the chips; every detail with one, the filter pane's where it is one of its filters.
+    await expect(panel(page).getByRole("button", { name: /^Copy / }).locator(".icon")).toHaveCount(0);
+    const detailIcons = await panel(page).locator("dt .icon").count();
+    expect(detailIcons, "an icon by every detail").toBe(await panel(page).locator("dt").count());
+    const iconOf = (locator: ReturnType<typeof panel>) => locator.locator(".icon").first().innerHTML();
+    const acrossIcon = await iconOf(panel(page).locator("dt", { hasText: "Seen across" }));
+    await openFilters(page);
+    expect(acrossIcon).toBe(await iconOf(page.locator('[data-range="range"]')));
+  });
+
+  /** The values of the details, top to bottom as they are listed. */
+  const detailOrder = ["First seen", "Last seen", "Seen over", "Seen across", "Locations", "Level", "Vendor"];
+  const valueBoxes = (page: Page) =>
+    Promise.all(detailOrder.map(async (label) => (await detail(page, label).boundingBox())!));
+
+  test("lists the details one to a row beside the map, values lined up", async ({ page }) => {
+    await visitMap(page, { token });
+    await openPanelAtCenter(page);
+    const labels = (await panel(page).locator("dt").allTextContents()).map((label) => label.trim());
+    expect(labels).toEqual(detailOrder);
+    // No first time from the server: the last one less the time it was seen over (3725 s).
+    const firstSeen = await page.evaluate(() => new Date(1792885194000 - 3725 * 1000).toLocaleString("de-DE"));
+    await expect(detail(page, "First seen")).toHaveText(firstSeen);
+
+    const values = await valueBoxes(page);
+    for (const [i, box] of values.entries()) {
+      expect(box.x, `value ${i} lined up`).toBeCloseTo(values[0].x, 0);
+      if (i > 0) expect(box.y, `value ${i} below the one before`).toBeGreaterThan(values[i - 1].y);
+    }
+  });
+
+  for (const { width, two } of [
+    { width: 390, two: false },
+    { width: 600, two: true },
+  ]) {
+    test(`lists the details ${two ? "two" : "one"} to a row across a ${width}px phone`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await visitMap(page, { token });
+      await openPanelAtCenter(page);
+      expect((await panel(page).boundingBox())!.width, "full width").toBe(width);
+      const values = await valueBoxes(page);
+      if (!two) {
+        for (const [i, box] of values.entries()) {
+          expect(box.x, `value ${i} lined up`).toBeCloseTo(values[0].x, 0);
+          if (i > 0) expect(box.y, `value ${i} below the one before`).toBeGreaterThan(values[i - 1].y);
+        }
+        return;
+      }
+      // First and last seen, seen over and across, locations and level side by side; the vendor below.
+      for (const i of [0, 2, 4]) {
+        const [left, right] = [values[i], values[i + 1]];
+        expect(right.y, `${detailOrder[i + 1]} beside ${detailOrder[i]}`).toBeCloseTo(left.y, 0);
+        expect(right.x, `${detailOrder[i + 1]} right of ${detailOrder[i]}`).toBeGreaterThan(left.x + left.width);
+      }
+      expect(values[6].x, "the vendor's value under the left values").toBeCloseTo(values[0].x, 0);
+      expect(values[6].y, "the vendor below").toBeGreaterThan(values[5].y);
+    });
+  }
+
+  test("copies the name, the MAC or a capability with a click, and says so", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await visitMap(page, { token });
+    await openPanelAtCenter(page);
+    for (const [name, value] of [
+      ["Copy name: Stub WiFi One", "Stub WiFi One"],
+      ["Copy MAC or cell ID: 00:00:00:00:00:01", "00:00:00:00:00:01"],
+      ["Copy capability: ESS", "ESS"],
+    ]) {
+      await panel(page).getByRole("button", { name }).click();
+      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(value);
+      await expect(panel(page).getByRole("status")).toHaveText("Copied");
+    }
   });
 
   test("shows the details on the left under the short form, not at the clicked point", async ({ page }) => {

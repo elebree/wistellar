@@ -5,8 +5,8 @@
   import RangeFilterSlider from "./RangeFilterSlider.svelte";
   import PatternField from "./PatternField.svelte";
   import QueryField from "./QueryField.svelte";
-  import funnelIcon from "#lib/icons/funnel.svg?raw";
-  import signalIcon from "#lib/icons/signal.svg?raw";
+  import funnelIcon from "lucide-static/icons/funnel.svg?raw";
+  import radioIcon from "lucide-static/icons/radio.svg?raw";
   import { filterWithAllTypes, typesLimited } from "#lib/network-types.ts";
   import { boundedRanges, filterWithoutRanges, rangeFilters } from "#lib/range-filters.ts";
   import { filterWithoutPatterns, limitedPatterns, patternFilters, patternSyntax } from "#lib/pattern-filters.ts";
@@ -98,7 +98,7 @@
     >
       <div>
         <div class="mb-1.5 flex items-center gap-2 text-sm">
-          <Icon svg={signalIcon} class="size-5 text-gray-500" />
+          <Icon svg={radioIcon} class="size-5 text-gray-500" />
           <span class="font-medium text-gray-900">Network types</span>
         </div>
         <TypeToggles bind:filter />

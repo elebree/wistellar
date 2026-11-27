@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { test, expect, stubToken } from "./stub-api";
 import { style } from "./stub-data";
-import { filtersButton, locateButton, menuButton, openPanelAtCenter, panel, visitMap } from "./map";
+import { canvas, filtersButton, locateButton, menuButton, openPanelAtCenter, panel, visitMap } from "./map";
 
 /** Whether the element is what a tap at its center would hit, i.e. nothing covers it. */
 const isOnTop = (locator: Locator) =>
@@ -53,21 +53,22 @@ test.describe("phone layout", () => {
     await expect(shortForm(page), "no short form while the details are open").toBeHidden();
     expect(await isOnTop(filtersButton(page)), "the funnel stays usable, below the panel").toBe(true);
 
-    // The menu button stays, over the panel's top right corner, with the close button beside it.
+    // The menu button goes, and the close button takes its place in the top right corner.
     const menu = (await menuButton(page).boundingBox())!;
+    await expect(menuButton(page), "no menu button over the details").toBeHidden();
     const close = panel(page).getByRole("button", { name: "Close" });
     const closeBox = (await close.boundingBox())!;
-    expect(closeBox.x + closeBox.width, "close button ends 10px before the menu button").toBeCloseTo(menu.x - 10, 0);
+    expect(closeBox.x + closeBox.width, "close button where the menu button was").toBeCloseTo(menu.x + menu.width, 0);
     expect(closeBox.y, "same top as the menu button").toBeCloseTo(menu.y, 0);
     expect(closeBox.height, "as high as the menu button").toBeCloseTo(menu.height, 0);
     expect(await isOnTop(close), "close button not covered").toBe(true);
 
     const bssid = (await panel(page).getByText("00:00:00:00:00:01", { exact: true }).boundingBox())!;
-    expect(bssid.y, "details start in the menu button's row").toBeLessThan(menu.y + menu.height);
+    expect(bssid.y, "details start in the close button's row").toBeLessThan(closeBox.y + closeBox.height);
 
-    expect(await isOnTop(menuButton(page)), "menu button drawn over the panel").toBe(true);
-    await menuButton(page).click();
-    expect(await isOnTop(page.getByRole("menu")), "open menu drawn over the panel").toBe(true);
+    // Closing the details brings the menu button back.
+    await close.click();
+    await expect(menuButton(page)).toBeVisible();
   });
 
   test("brings the short form back when the details close", async ({ page }) => {
@@ -136,6 +137,81 @@ test.describe("buttons down the right edge", () => {
       const iconSize = await button.locator(".maplibregl-ctrl-icon").evaluate((el) => getComputedStyle(el).maskSize);
       expect(iconSize, "a 20px icon, like the funnel's").toMatch(/^20px\b/);
     }
+
+    const iconColor = await zoomIn(page)
+      .locator(".maplibregl-ctrl-icon")
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const attribution = page.locator(".maplibregl-ctrl-attrib-button");
+    await expect(attribution).toHaveCSS("background-image", "none");
+    const info = await attribution.evaluate((el) => {
+      const style = getComputedStyle(el, "::before");
+      return { color: style.backgroundColor, mask: style.maskImage };
+    });
+    expect(info.color).toBe(iconColor);
+    expect(info.mask).toMatch(/^url\("data:image\/svg\+xml/);
+  });
+
+  test("show the compass, its north half red, only while the map is turned, and keep its place", async ({
+    page,
+  }) => {
+    await visitMap(page, { token: stubToken() });
+    await expect(compass(page)).toBeHidden();
+    const above = await Promise.all(buttons(page).slice(0, -1).map((button) => button.boundingBox()));
+
+    // Shift with an arrow key turns the map.
+    await canvas(page).focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    await expect(compass(page)).toBeVisible();
+    expect(await Promise.all(buttons(page).slice(0, -1).map((button) => button.boundingBox()))).toEqual(above);
+    const needle = await compass(page)
+      .locator(".maplibregl-ctrl-icon")
+      .evaluate((el) => getComputedStyle(el).backgroundImage);
+    expect(needle, "red to the middle").toMatch(/^linear-gradient\(oklch\(0\.577 0\.245 27\.325\) 50%/);
+
+    // It turns the map back to north, and goes.
+    await compass(page).click();
+    await expect(compass(page)).toBeHidden();
+  });
+
+  test("open the attribution as wide as its text, at most across the map, its button at the bottom", async ({
+    page,
+  }) => {
+    const attribution = page.locator(".maplibregl-ctrl-attrib");
+    const toggle = page.locator(".maplibregl-ctrl-attrib-button");
+    const openAttribution = async () => {
+      await expect(attribution).toBeVisible();
+      if (!(await attribution.getAttribute("class"))?.includes("maplibregl-compact-show")) await toggle.click();
+      await expect(attribution).toHaveClass(/maplibregl-compact-show/);
+      const box = (await attribution.boundingBox())!;
+      const button = (await toggle.boundingBox())!;
+      expect(box.x + box.width, "10px from the right edge").toBeCloseTo(1280 - 10, 0);
+      expect(button.y + button.height, "its button at the bottom").toBeCloseTo(box.y + box.height, 0);
+      return box;
+    };
+
+    await visitMap(page, { token: stubToken() });
+    await page.locator(".time-filter").getByRole("button", { expanded: true }).click();
+    const short = await openAttribution();
+    expect(short.width, "as wide as its text").toBeLessThan(200);
+
+    const long = "A long attribution, ".repeat(100);
+    await page.route("**/liberty.json", (route) =>
+      route.fulfill({
+        json: {
+          ...style,
+          sources: { long: { type: "geojson", data: { type: "FeatureCollection", features: [] }, attribution: long } },
+          layers: [...style.layers, { id: "long", type: "circle", source: "long" }],
+        },
+      }),
+    );
+    await page.reload();
+    const wrapped = await openAttribution();
+    expect(wrapped.x, "10px from the left edge").toBeCloseTo(10, 0);
+    expect(wrapped.height, "on several lines").toBeGreaterThan(2 * short.height);
+
+    await toggle.click();
+    await expect(attribution).not.toHaveClass(/maplibregl-compact-show/);
+    expect((await attribution.boundingBox())!.width, "only its button").toBeLessThan(40);
   });
 
   test("tint the funnel while the filter limits the map, also under the pointer", async ({ page }) => {

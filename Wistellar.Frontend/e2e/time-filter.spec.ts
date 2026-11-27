@@ -1,10 +1,24 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { test, expect, positionOf, stubToken, type StubApi } from "./stub-api";
-import { canvas, enterFilter, filterBox, linkFilter, openFilters, visitMap } from "./map";
+import { canvas, enterFilter, filterBox, filtersButton, linkFilter, locateButton, openFilters, visitMap } from "./map";
 
 // The time range bar under the map reads and writes the filter's `time[gt]` and `time[lt]`.
 
 const timeline = (page: Page) => page.getByRole("group", { name: "Timeline" });
+/** MapLibre's attribution toggle: a `<summary>`, so not a button by role. */
+const attribution = (page: Page) => page.locator(".maplibregl-ctrl-attrib-button");
+
+/** The map's buttons down the right edge that always show, top to bottom. */
+const buttons = (page: Page) => [filtersButton(page), page.locator(".maplibregl-ctrl-zoom-in"), locateButton(page)];
+const boxesOf = (locators: Locator[]) => Promise.all(locators.map((locator) => locator.boundingBox()));
+
+/** Whether a tap at the element's center would hit it, i.e. nothing covers it. */
+const isOnTop = (locator: Locator) =>
+  locator.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return hit !== null && el.contains(hit);
+  });
 const startHandle = (page: Page) => page.getByRole("slider", { name: "Start", exact: true });
 const endHandle = (page: Page) => page.getByRole("slider", { name: "End", exact: true });
 
@@ -49,9 +63,9 @@ test.describe("time range", () => {
 
     await startHandle(page).press("ArrowRight");
 
-    await expect
-      .poll(() => linkFilter(page))
-      .toMatch(/^type=W&time\[gt\]=2026-04-\d\dT\d\d:\d\d:\d\dZ&time\[lt\]=2026-05-01T00:00:00Z$/);
+    // The link changes once its navigation is done, and the old one would match the pattern too.
+    await expect.poll(() => linkFilter(page)).not.toContain(`time[gt]=${april.from}`);
+    expect(linkFilter(page)).toMatch(/^type=W&time\[gt\]=2026-04-\d\dT\d\d:\d\d:\d\dZ&time\[lt\]=2026-05-01T00:00:00Z$/);
     const from = linkFilter(page).match(/time\[gt\]=([^&]+)/)![1];
     expect(Date.parse(from)).toBeGreaterThan(Date.parse(april.from));
     await expect.poll(() => urlParam(page, "time[gt]")).toBe(from);
@@ -99,15 +113,34 @@ test.describe("time range", () => {
     await expect(page.locator(".time-filter")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
     await expect(page.locator(".time-filter .trs")).toHaveCSS("backdrop-filter", "saturate(1.8) blur(20px)");
 
-    for (const control of [
-      page.locator(".maplibregl-ctrl-bottom-right"),
-      page.getByRole("link", { name: "Wistellar logo" }),
-    ]) {
-      const box = (await control.boundingBox())!;
-      expect(box.y + box.height, "control above the bar").toBeLessThanOrEqual(bar.y);
+    for (const box of await boxesOf(buttons(page))) {
+      expect(box!.y + box!.height, "button above the bar").toBeLessThanOrEqual(bar.y);
     }
     await page.locator(".maplibregl-ctrl-bottom-right").getByRole("button", { name: "Zoom in" }).click();
     await expect.poll(() => new URL(page.url()).searchParams.get("z")).toBe("15.0");
+  });
+
+  test("leaves the map's buttons where they are when the timeline closes, and covers only the attribution", async ({
+    page,
+  }) => {
+    await visitMap(page, { token: stubToken() });
+    await expect(timeline(page), "open by default").toBeVisible();
+    const open = await boxesOf(buttons(page));
+    expect(await isOnTop(attribution(page)), "under the open timeline").toBe(false);
+
+    await page.locator(".time-filter").getByRole("button", { expanded: true }).click();
+    await expect(timeline(page)).toBeHidden();
+    expect(await boxesOf(buttons(page)), "buttons in place").toEqual(open);
+    expect(await isOnTop(attribution(page)), "shown above the closed bar").toBe(true);
+    const bar = (await page.locator(".time-filter").boundingBox())!;
+    const attributionBox = (await attribution(page).boundingBox())!;
+    expect(attributionBox.y + attributionBox.height).toBeLessThanOrEqual(bar.y);
+
+    // Starting with the timeline closed, the buttons are where an open one leaves them room.
+    await page.reload();
+    await expect(page.locator(".time-filter")).toBeVisible();
+    await expect(timeline(page)).toBeHidden();
+    await expect.poll(() => boxesOf(buttons(page)), "buttons in place after a restart").toEqual(open);
   });
 
   test("closes its timeline on demand only, and starts as it was left", async ({ page }) => {
@@ -149,14 +182,17 @@ test.describe("time range on a phone", () => {
     await expect(card).toHaveCSS("border-width", "1px 0px 0px");
     await expect(card).toHaveCSS("border-radius", "12px 12px 0px 0px");
 
+    const closed = await boxesOf(buttons(page));
     await page.locator(".time-filter").getByRole("button", { expanded: false }).click();
 
     await expect(timeline(page)).toBeVisible();
 
-    // The bar grew upwards, and the map's controls moved up with it.
+    // The bar grew upwards, under the map's buttons, which stayed where they were.
     const bar = (await page.locator(".time-filter").boundingBox())!;
-    const controls = (await page.locator(".maplibregl-ctrl-bottom-right").boundingBox())!;
-    expect(controls.y + controls.height, "controls above the opened bar").toBeLessThanOrEqual(bar.y);
+    expect(await boxesOf(buttons(page)), "buttons in place").toEqual(closed);
+    for (const box of closed) {
+      expect(box!.y + box!.height, "button above the opened bar").toBeLessThanOrEqual(bar.y);
+    }
   });
 
   test("shows the presets over the map in frosted glass", async ({ page }) => {

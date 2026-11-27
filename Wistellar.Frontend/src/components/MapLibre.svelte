@@ -62,6 +62,8 @@
   let mapContainer: HTMLElement;
   let controlsElement = $state<HTMLElement>();
   let styleLoaded = $state(false);
+  /** Facing north, flat and level: the compass has nothing to reset and hides. */
+  let northUp = $state(true);
   let selection = $state<string>();
   let networkSubscriptions: Subscription[] = [];
 
@@ -351,6 +353,10 @@
     map.on("zoomend", onViewChangedEvent);
     map.on("dragend", onViewChangedEvent);
 
+    map.on("move", () => {
+      northUp = [map.getBearing(), map.getPitch(), map.getRoll()].every((angle) => Math.abs(angle) < 0.01);
+    });
+
     // MapLibre stacks a bottom corner's controls upwards, each added one on top of the last. Down
     // the right edge that makes: the page's controls, zoom, location, compass. Zoom and compass are
     // two navigation controls so that the location button can go between them.
@@ -408,10 +414,7 @@
   onDestroy(() => map?.remove());
 </script>
 
-<div class="map-wrap">
-  <a href="https://github.com/elebree/wistellar" class="watermark">
-    <img src="github-mark.svg" alt="Wistellar logo" />
-  </a>
+<div class="map-wrap" class:north-up={northUp}>
   <div class="map" bind:this={mapContainer}></div>
   {#if controls}
     <!-- Moved into the map's bottom right corner once the map is set up. -->
@@ -434,23 +437,11 @@
     height: 100%;
   }
 
-  .watermark {
-    position: absolute;
-    left: 10px;
-    /* Above the time range bar, which the page lays over the bottom of the map. */
-    bottom: calc(10px + var(--time-filter-height, 0px));
-    z-index: 999;
-  }
-
-  .watermark img {
-    width: 16px;
-  }
-
   /*
    * The column down the right edge: the page's buttons, then MapLibre's zoom, location and compass
    * buttons, 10px apart. The page gives all of them the look of its menu button (`map-button` in
    * +page.svelte); what is MapLibre's own is fitted here: zoom in and zoom out make one capsule of
-   * two halves, and the icons are 20px Heroicons-style masks.
+   * two halves, and the icons are 20px masks made from Lucide icons.
    *
    * Each selector starts with `.map-wrap` and the corner so that it beats MapLibre's own rules,
    * which go up to five classes for the location button's states.
@@ -487,24 +478,50 @@
   .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-group .maplibregl-ctrl-icon) {
     background-color: currentColor;
     background-image: none !important;
-    mask: url("../lib/icons/crosshairs-dot.svg") center / 20px no-repeat;
+    mask: url("lucide-static/icons/locate-fixed.svg") center / 20px no-repeat;
     forced-color-adjust: none;
   }
 
   .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-zoom-in .maplibregl-ctrl-icon) {
-    mask-image: url("../lib/icons/plus.svg");
+    mask-image: url("lucide-static/icons/plus.svg");
   }
 
   .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon) {
-    mask-image: url("../lib/icons/minus.svg");
+    mask-image: url("lucide-static/icons/minus.svg");
   }
 
-  /* The needle's north half in the text color, the south half light. MapLibre turns the icon with
-     the map's bearing and pitch, so the halves turn with it. */
   .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-compass .maplibregl-ctrl-icon) {
     background-color: transparent;
-    background-image: linear-gradient(currentColor 50%, var(--color-gray-300) 50%) !important;
+    background-image: linear-gradient(
+      var(--color-red-600, oklch(57.7% 0.245 27.325)) 50%,
+      var(--color-gray-300) 50%
+    ) !important;
     mask-image: url("../lib/icons/compass-needle.svg");
+  }
+
+  .map-wrap :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-compass) {
+    transition:
+      opacity 0.2s,
+      visibility 0.2s;
+  }
+
+  .map-wrap.north-up :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-compass) {
+    visibility: hidden;
+    opacity: 0;
+  }
+
+  .map-wrap :global(.maplibregl-ctrl-attrib-button) {
+    background-image: none;
+    color: var(--color-gray-600);
+  }
+
+  .map-wrap :global(.maplibregl-ctrl-attrib-button::before) {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: currentColor;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill-rule='evenodd' viewBox='0 0 20 20'%3E%3Cpath d='M4 10a6 6 0 1 0 12 0 6 6 0 1 0-12 0m5-3a1 1 0 1 0 2 0 1 1 0 1 0-2 0m0 3a1 1 0 1 1 2 0v3a1 1 0 1 1-2 0'/%3E%3C/svg%3E")
+      center / 24px no-repeat;
   }
 
   /* The map no longer follows the location: no dot. */
@@ -518,7 +535,7 @@
         :is(.maplibregl-ctrl-geolocate-background, .maplibregl-ctrl-geolocate-background-error)
         .maplibregl-ctrl-icon
     ) {
-    mask-image: url("../lib/icons/crosshairs.svg");
+    mask-image: url("lucide-static/icons/locate.svg");
   }
 
   .map-wrap

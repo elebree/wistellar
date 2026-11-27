@@ -6,9 +6,9 @@
 import { decode, getFilterParam, setFilterParam } from "./filter-query.ts";
 import { parseFilterTime } from "./time-filter.ts";
 import { formatDistance, formatDuration } from "./format.ts";
-import distanceIcon from "./icons/distance.svg?raw";
-import clockIcon from "./icons/clock.svg?raw";
-import eyeIcon from "./icons/eye.svg?raw";
+import radiusIcon from "lucide-static/icons/radius.svg?raw";
+import clockIcon from "lucide-static/icons/clock.svg?raw";
+import locationsIcon from "lucide-static/icons/map-pin.svg?raw";
 
 export interface Stop {
   value: number;
@@ -70,7 +70,7 @@ export const rangeFilters: readonly RangeFilter[] = [
     label: "Seen across",
     hint: "Distance between the farthest places it was seen",
     noun: "distance",
-    icon: distanceIcon,
+    icon: radiusIcon,
     stops: numbers([0, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000]),
     read: readCount,
     format: formatDistance,
@@ -78,7 +78,7 @@ export const rangeFilters: readonly RangeFilter[] = [
   {
     name: "dwell",
     label: "Seen over",
-    hint: "Time from its first sighting to its last",
+    hint: "Time from its first location to its last",
     noun: "time span",
     icon: clockIcon,
     // Days rather than months or years, which the server counts in calendar time.
@@ -100,10 +100,10 @@ export const rangeFilters: readonly RangeFilter[] = [
   },
   {
     name: "locations",
-    label: "Sightings",
-    hint: "How many times it was recorded",
-    noun: "sightings",
-    icon: eyeIcon,
+    label: "Locations",
+    hint: "How many locations were recorded for it",
+    noun: "locations",
+    icon: locationsIcon,
     // Every network has at least one, so the lower handle at 1 sets nothing.
     stops: numbers([1, 2, 3, 5, 10, 25, 50, 100, 250, 500, 1000]),
     counted: true,

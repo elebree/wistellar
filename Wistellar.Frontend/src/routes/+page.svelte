@@ -12,10 +12,10 @@
   import { auth } from "#lib/auth.svelte.ts";
   import { loadSavedFilter, loadSavedView, saveFilter, saveView } from "#lib/saved-view.ts";
   import { filterParams } from "#lib/filter-query.ts";
-  import signInIcon from "#lib/icons/sign-in.svg?raw";
-  import signOutIcon from "#lib/icons/sign-out.svg?raw";
-  import userIcon from "#lib/icons/user.svg?raw";
-  import uploadIcon from "#lib/icons/upload.svg?raw";
+  import signInIcon from "lucide-static/icons/log-in.svg?raw";
+  import signOutIcon from "lucide-static/icons/log-out.svg?raw";
+  import userIcon from "lucide-static/icons/circle-user.svg?raw";
+  import uploadIcon from "lucide-static/icons/upload.svg?raw";
   import Icon from "../components/Icon.svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
@@ -32,6 +32,8 @@
   let network = $state<Record<string, unknown>>();
   let filters = $state<Filters>();
   let timeFilterHeight = $state(0);
+  let timeFilterOpenHeight = $state(0);
+  let timeFilterClosedHeight = $state(0);
   // The short form of the filter in the top row, for the details panel to start below it.
   let topControlsHeight = $state(0);
 
@@ -137,8 +139,10 @@
 
 <div class="app">
   <div
-    class="map-area"
+    class={["map-area", auth.signedIn && "has-time-filter"]}
     style:--time-filter-height="{auth.signedIn ? timeFilterHeight : 0}px"
+    style:--time-filter-open-height="{auth.signedIn ? timeFilterOpenHeight : 0}px"
+    style:--time-filter-closed-height="{auth.signedIn ? timeFilterClosedHeight : 0}px"
     style:--top-controls-height="{topControlsHeight}px"
   >
     {#if lat && lon}
@@ -171,7 +175,8 @@
           <FilterSummary {filter} onopen={(selector) => filters?.show(selector)} />
         {/if}
       </div>
-      <div class="maplibregl-ctrl-top-right">
+      <!-- On phones the details panel takes the top, and its close button the menu button's place. -->
+      <div class={["maplibregl-ctrl-top-right", network && "max-sm:invisible"]}>
         <AppMenu
           items={menuItems}
           header={auth.signedIn ? signedInAs : undefined}
@@ -179,7 +184,12 @@
       </div>
     </div>
     {#if auth.signedIn}
-      <TimeFilter bind:filter bind:height={timeFilterHeight} />
+      <TimeFilter
+        bind:filter
+        bind:height={timeFilterHeight}
+        bind:openHeight={timeFilterOpenHeight}
+        bind:closedHeight={timeFilterClosedHeight}
+      />
     {/if}
   </div>
   <Login />
@@ -260,9 +270,30 @@
   }
 
   /* The time range bar lies over the bottom of the map; MapLibre's corner controls move up. */
-  .map-area :global(.maplibregl-ctrl-bottom-left),
-  .map-area :global(.maplibregl-ctrl-bottom-right) {
+  .map-area :global(.maplibregl-ctrl-bottom-left) {
     bottom: var(--time-filter-height, 0px);
+  }
+
+  .map-area :global(.maplibregl-ctrl-bottom-right) {
+    bottom: var(--time-filter-open-height, 0px);
+  }
+
+  .map-area.has-time-filter :global(.maplibregl-ctrl-bottom-right > .maplibregl-ctrl-attrib) {
+    position: absolute;
+    right: 0;
+    bottom: calc(var(--time-filter-closed-height, 0px) - var(--time-filter-open-height, 0px));
+  }
+
+  .map-area :global(.maplibregl-ctrl-bottom-right > .maplibregl-ctrl-attrib.maplibregl-compact-show) {
+    /* MapLibre's attribution leaves its padding out of the width. */
+    box-sizing: border-box;
+    width: max-content;
+    max-width: calc(100vw - 20px);
+  }
+
+  .map-area :global(.maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib-button) {
+    top: auto;
+    bottom: 0;
   }
 
   :global(body) {

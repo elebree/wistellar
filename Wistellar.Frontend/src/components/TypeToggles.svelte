@@ -36,38 +36,31 @@
 </div>
 
 <style>
-  /* White with the filter box's 1px outline, 36px high like it. The corners follow the badges'. */
   .type-toggles {
     display: flex;
     width: max-content;
     align-items: center;
     gap: 2px;
-    padding: 2px;
-    border-radius: calc(0.25rem + 2px);
-    background: #fff;
-    outline: 1px solid var(--color-gray-300);
-    outline-offset: -1px;
     -webkit-tap-highlight-color: transparent;
   }
 
   .type-toggles button {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.25rem;
     cursor: pointer;
   }
 
-  /* Off: a grey outline only. Qualified with the row so that it beats MapLibre's
-     `.maplibregl-ctrl button:not(:disabled):hover`, which only the off state keeps. */
-  .type-toggles button[aria-pressed="false"] {
-    color: var(--color-gray-500);
+  .type-toggles button:not(:disabled):hover {
     background-color: transparent;
-    box-shadow: inset 0 0 0 1px var(--color-gray-200);
+  }
+
+  .type-toggles button[aria-pressed="false"] {
+    color: var(--color-gray-400);
   }
 
   .type-toggles button[aria-pressed="false"]:hover {
-    background-color: var(--color-gray-100);
-  }
-
-  .type-toggles button[aria-pressed="true"]:hover {
-    background-color: color-mix(in srgb, var(--type-color) 24%, transparent);
+    color: var(--color-gray-500);
   }
 
   .type-toggles button[aria-disabled="true"] {

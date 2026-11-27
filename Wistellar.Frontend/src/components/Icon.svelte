@@ -1,16 +1,16 @@
 <script lang="ts">
   interface Props {
-    /** SVG markup, imported with `?raw` from `src/lib/icons/`. Use `currentColor` so it follows the text. */
     svg: string;
     /** Size and color, e.g. `size-5 text-gray-400`. */
     class?: string;
   }
 
   let { svg, class: className = "" }: Props = $props();
+  let markup = $derived(svg.replace(/>\s+</g, "><").trim());
 </script>
 
 <!-- Decorative: the text next to an icon carries the meaning. -->
-<span class="icon {className}" aria-hidden="true">{@html svg}</span>
+<span class="icon {className}" aria-hidden="true">{@html markup}</span>
 
 <style>
   .icon {

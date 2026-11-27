@@ -40,6 +40,7 @@
 		"jose": "^6.2.17",
 		"jsooner": "^1.5.0",
 		"jwt-decode": "^4.0.0",
+		"lucide-static": "^1.77.0",
 		"maplibre-gl": "^6.17.0",
 		"svelte-time-range": "^0.2.0",
 		"tailwindcss": "^4.3.5"
