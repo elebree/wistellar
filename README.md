@@ -17,8 +17,9 @@ interactive map. Your survey data stays in a database on your own server.
 
 - **One map for every source** — WiFi, Bluetooth and cellular observations land in a single database
   and render as separate layers on a MapLibre map backed by vector tiles generated on the fly.
-- **Expressive filtering** — filter by SSID, BSSID, capabilities, network type, observation count,
-  signal range, dwell time and last-seen time, straight from the map's query box.
+- **Expressive filtering** — filter by network type, name, MAC address, capabilities, observation
+  count, distance covered, dwell time and last-seen time from the map's filters pane. The filter is
+  kept in the page URL, so a filtered map can be bookmarked or shared.
 - **Several input formats** — see [Data sources](#data-sources). `.gz` and `.zip` archives are
   unpacked automatically.
 - **Automatic enrichment** — MAC addresses are resolved to hardware vendors via the IEEE OUI registry,
@@ -34,7 +35,7 @@ interactive map. Your survey data stays in a database on your own server.
 Sign in and choose **Import files** from the map's menu to upload CSV, KML, KMZ, ZIP or SQLite files,
 optionally GZip-compressed. Archives are unpacked on the server.
 You can select several files, follow their progress and review any warnings. The map refreshes when
-the import finishes. See [HTTP API](#http-api) for how to upload with `curl` or any other HTTP client.
+the import finishes.
 The importer picks the format by content type or file extension (`.csv`, `.kml`, `.sqlite`, plus
 `.gz`, `.zip` and `.kmz` wrappers), and tells the CSV formats apart by their first line.
 
@@ -118,52 +119,6 @@ Settings live under the `Wistellar` section of `appsettings.json`:
 
 Both can be overridden with environment variables using ASP.NET Core's double-underscore syntax, for
 example `-e Wistellar__ConnectionString=/app/data/my-networks.sqlite` on the `docker run` command.
-
-## Map filters
-
-The map's query box, the tile API and the browser URL all share one filter syntax:
-
-```
-type=W|E|B&ssid=cafe_%&time[gt]=7d&locations[gt]=5
-```
-
-| Parameter | Notes |
-| --- | --- |
-| `type` | Network type letters, `\|`-separated. `W` WiFi, `B` Bluetooth, `E` BLE, `F` NFC, `G` GSM, `C` CDMA, `L` LTE, `D` UMTS, `N` 5G NR |
-| `ssid`, `bssid` | SQL `LIKE` patterns (`%` and `_` wildcards), `\|`-separated for alternatives |
-| `cap` | A single SQL `LIKE` pattern matched against the capabilities string |
-| `range[gt]`, `range[lt]` | Distance between the farthest-apart observations, in metres |
-| `locations[gt]`, `locations[lt]` | Number of recorded observations |
-| `dwell[gt]`, `dwell[lt]` | Time between first and last observation, as a duration (`30m`, `12h`, `7d`) |
-| `time[gt]`, `time[lt]` | Last seen. Accepts relative offsets (`30m`, `12h`, `7d`, `3M`, `1y`), ISO dates, or Unix seconds |
-
-`range`, `locations` and `dwell` are recalculated when the WiGLE app checks its upload status or the
-web interface finishes an import. When uploading directly through the API, request
-`GET /api/v2/file/transactions?pagestart=0` afterwards to update these three filters.
-
-## HTTP API
-
-Every endpoint except `activate` needs the token in an `Authorization: Bearer <token>` header.
-
-| Endpoint | Purpose |
-| --- | --- |
-| `POST /api/v2/activate` | Sign in. Form fields `credential_0` (user name), `credential_1` (password) and `type`; returns a JWT valid for one month |
-| `POST /api/v2/file/upload` | [File import](#file-import). Send the files as `multipart/form-data`; several files per request are accepted |
-| `GET /geo/network` | Networks as a GeoJSON `FeatureCollection`. Accepts every [map filter](#map-filters), plus a bounding box: `lat[gt]`, `lat[lt]`, `lon[gt]`, `lon[lt]` |
-| `GET /geo/location` | Individual observations as GeoJSON points. Filter by `bssid` (`\|`-separated) and `altitude[gt]` / `altitude[lt]` |
-
-```bash
-# Sign in and keep the token
-TOKEN=$(curl -s -X POST http://localhost:8080/api/v2/activate -d credential_0=admin -d credential_1=YourStrongPassword -d type=device | jq -r .token)
-
-# Import files
-curl -X POST http://localhost:8080/api/v2/file/upload -H "Authorization: Bearer $TOKEN" -F file=@WigleWifi_20240101.csv -F file=@export.kml.gz
-
-# Export filtered networks as GeoJSON
-curl -G http://localhost:8080/geo/network -H "Authorization: Bearer $TOKEN" --data-urlencode 'type=W' --data-urlencode 'time[gt]=30d' > networks.geojson
-```
-
-A `/geo/network` request without a bounding box returns every matching network in the database.
 
 ## Troubleshooting
 
