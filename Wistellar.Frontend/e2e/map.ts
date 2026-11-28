@@ -58,6 +58,7 @@ export async function visitMap(
   const [lon, lat] = positionOf(at);
   await page.goto(`/?z=${zoom}&lat=${lat}&lon=${lon}${filter ? `&${filter}` : ""}`);
   await expect(canvas(page)).toBeVisible();
+  await expect.poll(() => linkFilter(page)).not.toBe("");
 }
 
 export async function openSignIn(page: Page) {
