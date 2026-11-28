@@ -120,6 +120,17 @@ test.describe("time range", () => {
     await expect.poll(() => new URL(page.url()).searchParams.get("z")).toBe("15.0");
   });
 
+  // The slider colours its ticks and the "now" line with light-dark(). The build compiles that, for
+  // browsers without it, into two variables that only a `color-scheme` declaration sets; without
+  // one, both colours apply at once, which is no colour at all, and only the dev server drew them.
+  test("draws its ticks and the current time", async ({ page }) => {
+    await visitMap(page, { token: stubToken() });
+    await expect(timeline(page)).toBeVisible();
+
+    await expect(page.locator(".time-filter .trs-axis-major").first()).toHaveCSS("stroke", /^rgb\(/);
+    await expect(page.locator(".time-filter .trs-now")).toHaveCSS("background-color", /^rgb\(/);
+  });
+
   test("leaves the map's buttons where they are when the timeline closes, and covers only the attribution", async ({
     page,
   }) => {

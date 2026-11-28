@@ -4,8 +4,9 @@
     --color-indigo-600: oklch(0.68 0.16 243);
 }
 
-/* Frosted glass for panels over the map */
 :root {
+    color-scheme: light;
+    /* Frosted glass for panels over the map */
     --glass-background: rgb(255 255 255 / 0.72);
     --glass-filter: saturate(180%) blur(20px);
 }
